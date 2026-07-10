@@ -1,0 +1,25 @@
+#!/bin/bash
+# Starts every stack flagged autostart=true in its meta.json. Hooked to
+# Unraid's own "docker_started" event (fires during array-start, once the
+# docker service is up) via /usr/local/sbin/emhttp_event - the same
+# lifecycle point Unraid's own Docker container autostart uses
+# (/etc/rc.d/rc.docker's docker_container_start(), reading
+# /var/lib/docker/unraid-autostart). See emhttp_event's header comment
+# for the full list of documented event names.
+STACKS_DIR="/boot/config/plugins/stacksUI"
+
+[ -d "$STACKS_DIR" ] || exit 0
+
+for STACK_DIR in "$STACKS_DIR"/*/; do
+  NAME=$(basename "$STACK_DIR")
+  META="$STACK_DIR/meta.json"
+  COMPOSE="$STACK_DIR/docker-compose.yml"
+  [ -f "$COMPOSE" ] || continue
+  [ -f "$META" ] || continue
+
+  AUTOSTART=$(php -r '$m = json_decode(file_get_contents($argv[1]), true); echo (is_array($m) && !empty($m["autostart"])) ? "1" : "0";' "$META")
+  if [ "$AUTOSTART" = "1" ]; then
+    logger -t stacksUI "autostarting stack: $NAME"
+    ( cd "$STACK_DIR" && docker compose up -d >>/var/log/stacksUI-autostart.log 2>&1 )
+  fi
+done

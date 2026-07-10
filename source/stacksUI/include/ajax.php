@@ -1,0 +1,120 @@
+<?PHP
+require_once __DIR__ . '/StacksHelper.php';
+
+// CSRF for POST requests is already enforced globally by
+// webGui/include/local_prepend.php (loaded via php.ini's auto_prepend_file
+// for every PHP request) before this script's body even runs: it checks
+// $_POST['csrf_token']/X-CSRF-Token against state/var.ini and exit()s on
+// mismatch, then unsets $_POST['csrf_token']. Re-checking it here would
+// only ever see an empty value (already stripped) and reject everything -
+// confirmed by reading local_prepend.php directly on the box.
+
+header('Content-Type: application/json');
+
+$action = $_REQUEST['action'] ?? '';
+
+function stacksUI_fail($e) {
+  if ($e instanceof InvalidStackNameException) {
+    http_response_code(400);
+  } elseif ($e instanceof ComposeCommandException) {
+    http_response_code(502);
+    echo json_encode(['error' => $e->getMessage(), 'stderr' => $e->stderr]);
+    return;
+  } else {
+    http_response_code(500);
+  }
+  echo json_encode(['error' => $e->getMessage()]);
+}
+
+try {
+  switch ($action) {
+    case 'list':
+      echo json_encode(stacksUI_list_stacks());
+      break;
+
+    case 'settings':
+      echo json_encode(stacksUI_settings());
+      break;
+
+    case 'save_settings':
+      echo json_encode(stacksUI_save_settings([
+        'stacksDir' => trim($_POST['stacksDir'] ?? ''),
+        'dataRoot' => trim($_POST['dataRoot'] ?? ''),
+        'backupPath' => trim($_POST['backupPath'] ?? ''),
+      ]));
+      break;
+
+    case 'get':
+      echo json_encode(stacksUI_read_stack($_REQUEST['name'] ?? ''));
+      break;
+
+    case 'create':
+    case 'update':
+      $name = $_POST['name'] ?? '';
+      $compose = $_POST['compose'] ?? '';
+      $env = $_POST['env'] ?? '';
+      $logoUrl = trim($_POST['logoUrl'] ?? '');
+      if ($compose === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Compose file contents are required']);
+        break;
+      }
+      $meta = ['logoUrl' => $logoUrl !== '' ? $logoUrl : null];
+      if ($action === 'create') {
+        $meta['createdAt'] = date('c');
+      }
+      $backupError = stacksUI_write_stack($name, $compose, $env, $meta);
+      $response = ['name' => $name];
+      if ($backupError) {
+        $response['backupWarning'] = "Stack saved, but backup failed: $backupError";
+      }
+      echo json_encode($response);
+      break;
+
+    case 'validate':
+      stacksUI_validate_compose($_POST['compose'] ?? '', $_POST['env'] ?? '');
+      echo json_encode(['ok' => true]);
+      break;
+
+    case 'autostart':
+      $meta = stacksUI_set_autostart($_POST['name'] ?? '', ($_POST['value'] ?? '') === '1');
+      echo json_encode(['meta' => $meta]);
+      break;
+
+    case 'delete':
+      stacksUI_delete_stack($_POST['name'] ?? '');
+      echo json_encode(['ok' => true]);
+      break;
+
+    case 'up':
+      stacksUI_compose_up($_POST['name'] ?? '');
+      echo json_encode(['ok' => true]);
+      break;
+
+    case 'down':
+      stacksUI_compose_down($_POST['name'] ?? '');
+      echo json_encode(['ok' => true]);
+      break;
+
+    case 'restart':
+      stacksUI_compose_restart($_POST['name'] ?? '');
+      echo json_encode(['ok' => true]);
+      break;
+
+    case 'pull':
+      stacksUI_compose_pull($_POST['name'] ?? '');
+      echo json_encode(['ok' => true]);
+      break;
+
+    case 'logs':
+      $tail = isset($_REQUEST['tail']) ? (int)$_REQUEST['tail'] : 200;
+      echo json_encode(['logs' => stacksUI_compose_logs($_REQUEST['name'] ?? '', $tail)]);
+      break;
+
+    default:
+      http_response_code(400);
+      echo json_encode(['error' => 'Unknown action']);
+  }
+} catch (Exception $e) {
+  stacksUI_fail($e);
+}

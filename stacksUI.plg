@@ -1,0 +1,113 @@
+<?xml version='1.0' standalone='yes'?>
+
+<!--
+Stacks UI - Unraid plugin for managing Docker Compose stacks.
+Adds a "Stacks" tab and hides the built-in Docker tab.
+Follows the standard community plugin format, see:
+https://wiki.unraid.net/Plugin_Development
+
+Before cutting a release: run package.sh to build the .txz, upload it to
+a GitHub release, then fill in SRC and MD5 below. pluginURL should point
+at the raw URL of this file once committed, so Unraid's plugin manager
+can check for updates.
+-->
+
+<!DOCTYPE PLUGIN [
+<!ENTITY name      "stacksUI">
+<!ENTITY author    "macmiller">
+<!-- Version follows year.month.day.n - bump n for each same-day release,
+     reset to 1 when the date changes. package.sh reads this value as its
+     default (single source of truth) rather than generating its own. -->
+<!ENTITY version   "2026.07.11.1">
+<!ENTITY pluginURL "https://raw.githubusercontent.com/you/unraid-ui/main/stacks-ui-plugin/stacksUI.plg">
+<!ENTITY SRC       "https://github.com/you/unraid-ui/releases/download/stacksUI-&version;/stacksUI-&version;.txz">
+<!ENTITY MD5       "REPLACE_WITH_TXZ_MD5">
+<!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
+<!ENTITY configdir "/boot/config/plugins/&name;">
+]>
+
+<PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
+
+  <CHANGES>
+###2026.07.11.1
+- Fixed: author/version weren't showing on the Plugins page (the
+  installed .plg descriptor had gone missing on the test box - now
+  properly redeployed). Added a proper black and white icon (4 offset
+  squares) shown
+  on the Plugins page. Author now "macmiller". Switched to
+  year.month.day.n versioning.
+###2026.07.10
+- Initial release: Stacks tab (create/edit/start/stop/logs/delete Docker
+  Compose stacks, one card per stack with an expandable container list),
+  hides the built-in Docker tab.
+- Bundles a pinned docker-compose CLI plugin and self-heals it at boot
+  (/usr/local/lib is not persistent, so a bare `docker compose` dependency
+  would silently break after every reboot).
+- Added: per-container IP/network in the expandable list, a Restart
+  button, an Autostart switch (starts the stack when the array starts,
+  matching the built-in Docker page's own Autostart toggle), a
+  start/stop/restart progress popup, nicer compose/env editors with line
+  numbers. Fixed: stopped containers within a stack were being hidden
+  entirely (`compose ps` needs `--all` to include them).
+  </CHANGES>
+
+  <!-- Plugin code, packaged as a single txz. -->
+  <FILE Name="&configdir;/packages/stacksUI-&version;.txz" Run="upgradepkg --install-new">
+    <URL>&SRC;</URL>
+    <MD5>&MD5;</MD5>
+  </FILE>
+
+  <!-- Post-install: ensure the data dir exists, then hide the built-in
+       Docker tab and keep it hidden across reboots. -->
+  <FILE Run="/bin/bash">
+    <INLINE>
+set -e
+
+mkdir -p "&configdir;"
+chmod +x "&emhttp;/scripts/"*.sh
+chmod +x "&emhttp;/vendor/docker-compose"
+chmod +x "&emhttp;/event/docker_started/"*
+
+# dynamix.docker.manager's page file, and /usr/local/lib's Docker CLI
+# plugins, are both rebuilt from the base OS packages on every boot - so
+# hiding the Docker tab and keeping docker-compose installed both need to
+# be re-applied at every boot, not just once here. /boot/config/go is the
+# standard flash-persisted boot script other plugins use for exactly
+# this. Guarded with a marker so re-running the installer (upgrades)
+# doesn't duplicate it.
+GO_FILE="/boot/config/go"
+MARKER="# --- stacksUI boot-hooks: begin ---"
+if ! grep -qF "$MARKER" "$GO_FILE" 2&gt;/dev/null; then
+  {
+    echo "$MARKER"
+    echo "&emhttp;/scripts/patch_docker_menu.sh &gt;/var/log/stacksUI-patch.log 2&gt;&amp;1 &amp;"
+    echo "&emhttp;/scripts/install_compose_cli.sh &gt;/var/log/stacksUI-compose-cli.log 2&gt;&amp;1 &amp;"
+    echo "# --- stacksUI boot-hooks: end ---"
+  } &gt;&gt; "$GO_FILE"
+fi
+
+"&emhttp;/scripts/patch_docker_menu.sh" || true
+"&emhttp;/scripts/install_compose_cli.sh" || true
+
+echo "Stacks UI installed. Visit the Stacks tab to get started."
+    </INLINE>
+  </FILE>
+
+  <!-- Uninstall: restore the Docker tab, remove the go-file hook, remove
+       the packaged code. Deliberately leaves &configdir; (each stack's
+       docker-compose.yml/.env/meta.json) in place so a reinstall doesn't
+       lose stacks - remove manually if a clean wipe is wanted. -->
+  <FILE Run="/bin/bash" Method="remove">
+    <INLINE>
+"&emhttp;/scripts/restore_docker_menu.sh" || true
+
+GO_FILE="/boot/config/go"
+if [ -f "$GO_FILE" ]; then
+  sed -i '/# --- stacksUI boot-hooks: begin ---/,/# --- stacksUI boot-hooks: end ---/d' "$GO_FILE"
+fi
+
+removepkg stacksUI-&version; || true
+    </INLINE>
+  </FILE>
+
+</PLUGIN>

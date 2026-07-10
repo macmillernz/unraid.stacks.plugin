@@ -1,0 +1,112 @@
+Menu="Tasks:60"
+Title="Stacks"
+Icon="stacks.png"
+---
+<?PHP
+// $var, $docroot etc. are already populated by webGui/template.php before
+// this page's body is evaluated (see webGui/include/PageBuilder.php and
+// DefaultPageLayout.php) - no require needed to read $var['csrf_token'] below.
+?>
+<link type="text/css" rel="stylesheet" href="<?autov('/webGui/styles/jquery.switchbutton.css')?>">
+<link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
+<script src="<?autov('/webGui/javascript/jquery.switchbutton.js')?>"></script>
+
+<div id="stacksUI-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
+  <div class="stacksUI-toolbar">
+    <button id="stacksUI-new" class="stacksUI-btn stacksUI-btn-primary">+ New Stack</button>
+    <div class="stacksUI-toolbar-right">
+      <button id="stacksUI-start-all" class="stacksUI-btn">Start All</button>
+      <button id="stacksUI-stop-all" class="stacksUI-btn">Stop All</button>
+      <button id="stacksUI-settings" class="stacksUI-btn">Settings</button>
+    </div>
+  </div>
+  <div id="stacksUI-list" class="stacksUI-list">
+    <p class="stacksUI-empty">Loading stacks&hellip;</p>
+  </div>
+</div>
+
+<!-- Create / edit wizard -->
+<div id="stacksUI-modal" class="stacksUI-modal-overlay" style="display:none">
+  <div class="stacksUI-modal">
+    <h2 id="stacksUI-modal-title">New Stack</h2>
+    <label>
+      Stack name
+      <input type="text" id="stacksUI-field-name" placeholder="e.g. plex">
+    </label>
+    <label>
+      Logo URL <span class="stacksUI-optional">(optional)</span>
+      <input type="text" id="stacksUI-field-logo" placeholder="https://.../logo.png">
+    </label>
+    <div class="stacksUI-field">
+      <div class="stacksUI-field-label-row">
+        <label for="stacksUI-field-compose">docker-compose.yml</label>
+        <button type="button" id="stacksUI-upload-compose-btn" class="stacksUI-btn stacksUI-btn-small">Upload</button>
+        <input type="file" id="stacksUI-upload-compose" accept=".yml,.yaml,text/yaml" style="display:none">
+      </div>
+      <div class="stacksUI-editor" data-rows="14">
+        <div class="stacksUI-editor-gutter"></div>
+        <textarea id="stacksUI-field-compose" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
+      </div>
+    </div>
+    <div class="stacksUI-field">
+      <div class="stacksUI-field-label-row">
+        <label for="stacksUI-field-env">.env <span class="stacksUI-optional">(optional)</span></label>
+        <button type="button" id="stacksUI-upload-env-btn" class="stacksUI-btn stacksUI-btn-small">Upload</button>
+        <input type="file" id="stacksUI-upload-env" accept=".env,text/plain" style="display:none">
+      </div>
+      <div class="stacksUI-editor" data-rows="6">
+        <div class="stacksUI-editor-gutter"></div>
+        <textarea id="stacksUI-field-env" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
+      </div>
+    </div>
+    <p id="stacksUI-modal-error" class="stacksUI-error" style="display:none"></p>
+    <p id="stacksUI-modal-validation" class="stacksUI-validation" style="display:none"></p>
+    <div class="stacksUI-modal-actions">
+      <button id="stacksUI-modal-verify" class="stacksUI-btn">Verify Syntax</button>
+      <span class="stacksUI-spacer"></span>
+      <button id="stacksUI-modal-cancel" class="stacksUI-btn">Cancel</button>
+      <button id="stacksUI-modal-save" class="stacksUI-btn stacksUI-btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Logs viewer -->
+<div id="stacksUI-logs-modal" class="stacksUI-modal-overlay" style="display:none">
+  <div class="stacksUI-modal">
+    <h2 id="stacksUI-logs-title">Logs</h2>
+    <pre id="stacksUI-logs-content" class="stacksUI-code stacksUI-logs"></pre>
+    <div class="stacksUI-modal-actions">
+      <button id="stacksUI-logs-refresh" class="stacksUI-btn">Refresh</button>
+      <button id="stacksUI-logs-close" class="stacksUI-btn stacksUI-btn-primary">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="stacksUI-settings-modal" class="stacksUI-modal-overlay" style="display:none">
+  <div class="stacksUI-modal stacksUI-modal-narrow">
+    <h2>Stacks UI Settings</h2>
+    <label>
+      Stacks directory
+      <input type="text" id="stacksUI-settings-dir" placeholder="/boot/config/plugins/stacksUI">
+    </label>
+    <p class="stacksUI-hint">Where each stack's docker-compose.yml/.env/meta.json live. Changing this moves any existing stacks to the new location.</p>
+    <label>
+      Default data root
+      <input type="text" id="stacksUI-settings-dataroot" placeholder="/mnt/user/appdata">
+    </label>
+    <p class="stacksUI-hint">Used to pre-fill a DATA_ROOT suggestion in new stacks' .env - doesn't affect stacks you've already created.</p>
+    <label>
+      Backup path <span class="stacksUI-optional">(optional)</span>
+      <input type="text" id="stacksUI-settings-backup" placeholder="e.g. /mnt/user/backups/stacksUI">
+    </label>
+    <p class="stacksUI-hint">If set, a copy of a stack's docker-compose.yml/.env/meta.json is mirrored here after every create/edit. Leave blank to disable.</p>
+    <p id="stacksUI-settings-error" class="stacksUI-error" style="display:none"></p>
+    <div class="stacksUI-modal-actions">
+      <button id="stacksUI-settings-cancel" class="stacksUI-btn">Cancel</button>
+      <button id="stacksUI-settings-save" class="stacksUI-btn stacksUI-btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/plugins/stacksUI/js/stacksUI.js"></script>
