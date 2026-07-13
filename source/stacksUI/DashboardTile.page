@@ -1,0 +1,92 @@
+Menu="Dashboard:0"
+Cond="version_compare(parse_ini_file('/etc/unraid-version')['version'],'6.11.9','>')"
+Markdown="false"
+---
+<?PHP
+// Registers a "Stacks" tile on the Main Dashboard via Unraid's own
+// documented extension point (see webGui/DashboardCustomTileExample.page-
+// on any Unraid box, and dynamix/DashStats.page's customTiles()/$mytiles
+// global) - no core file is patched for this. Confirmed live on Unraid
+// 7.3.2: pages in the "Dashboard" menu group all get eval()'d in
+// sequence before DashStats.page calls customTiles('column2'), as long as
+// this file's rank (":0") sorts before DashStats.page's own (unranked)
+// "Dashboard" entry - matches the official example exactly.
+//
+// Also hides the built-in Docker tile via a plain <style> rule, injected
+// the same side-effect way - simpler and safer than patching
+// DashStats.page's own $dockerd condition, and needs no boot-reapply
+// hook since this is our own plugin file, reinstalled with everything
+// else on every boot.
+require_once "$docroot/plugins/stacksUI/include/StacksHelper.php";
+
+$pluginname = "stacksUI";
+
+// IMPORTANT: never nest a <table> (or anything that produces an
+// implicit <tbody>) inside this tile. Unraid's own DashStats.page runs
+// $('div.frame tbody').not('.system').each(...) => .attr('title').md5()
+// unconditionally on every tbody on the page (addProperties(), see
+// DashStats.page). A nested <table><tr>...</tr></table> with no
+// explicit <tbody> gets one auto-inserted by the browser's HTML parser
+// - that implicit tbody has no title attribute, so .md5() on undefined
+// throws and silently aborts the rest of the Dashboard's init JS,
+// leaving the page blank below the nav bar. Confirmed live (uncaught
+// TypeError: Cannot read properties of undefined (reading 'md5') at
+// addProperties()). Only <div>/<span> are used below for exactly this
+// reason - a CSS grid needs no table at all.
+$cells = '';
+try {
+  foreach (stacksUI_list_stacks() as $stack) {
+    $running = $stack['status'] === 'running';
+    // Same native palette variables (webGui/styles/default-color-palette.css)
+    // used throughout stacksUI.css, so this matches whatever theme is active
+    // instead of a hardcoded look.
+    $dotColor = $running ? 'var(--green-500)' : 'var(--red-800)';
+    $name = htmlspecialchars($stack['name']);
+    $logoUrl = $stack['meta']['logoUrl'] ?? null;
+    $logoHtml = $logoUrl
+      ? "<img src='" . htmlspecialchars($logoUrl) . "' style='width:36px;height:36px;object-fit:contain;border-radius:6px;background:var(--gray-150);display:block'>"
+      : "<div style='width:36px;height:36px;border-radius:6px;background:var(--gray-150);color:var(--alt-text-color);display:flex;align-items:center;justify-content:center;font-size:16px'>&#9639;</div>";
+    $cells .= <<<CELL
+<div style='display:flex;flex-direction:column;align-items:center;text-align:center;padding:6px 2px'>
+  <div style='position:relative'>
+    $logoHtml
+    <span style='position:absolute;bottom:-2px;right:-2px;width:10px;height:10px;border-radius:50%;background:$dotColor;border:2px solid var(--background-color)'></span>
+  </div>
+  <span style='font-size:11px;margin-top:4px;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>$name</span>
+</div>
+CELL;
+  }
+} catch (Exception $e) {
+  // best-effort - a broken docker compose/socket just means an empty tile,
+  // not a broken dashboard
+}
+$rows = $cells !== ''
+  ? "<div style='display:grid;grid-template-columns:repeat(3,1fr);gap:4px'>$cells</div>"
+  : "_(No stacks yet)_";
+
+$mytiles[$pluginname]['column2'] = <<<EOT
+<tbody title="_(Docker Compose stacks)_">
+<tr><td>
+  <span class='tile-header'>
+    <span class='tile-header-left'>
+      <i class='fa fa-th-large f32'></i>
+      <div class='section'>
+        <h3 class='tile-header-main'>_(Stacks)_</h3>
+      </div>
+    </span>
+    <span class='tile-header-right'>
+      <span class='tile-header-right-controls'>
+        <a href='/Stacks' title="_(Go to Stacks)_">
+          <i class='fa fa-fw fa-cog control'></i>
+        </a>
+      </span>
+    </span>
+  </span>
+</td></tr>
+<tr><td>
+  $rows
+</td></tr>
+</tbody>
+EOT;
+?>
+<style>#docker_view { display: none !important; }</style>

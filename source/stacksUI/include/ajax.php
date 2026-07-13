@@ -111,6 +111,14 @@ try {
       echo json_encode(['logs' => stacksUI_compose_logs($_REQUEST['name'] ?? '', $tail)]);
       break;
 
+    case 'store_list':
+      echo json_encode(stacksUI_appstore_list());
+      break;
+
+    case 'store_get':
+      echo json_encode(stacksUI_appstore_get($_REQUEST['slug'] ?? ''));
+      break;
+
     default:
       http_response_code(400);
       echo json_encode(['error' => 'Unknown action']);

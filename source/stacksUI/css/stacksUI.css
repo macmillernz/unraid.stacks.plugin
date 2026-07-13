@@ -1,28 +1,44 @@
+/* Uses Unraid's own native styling wherever it exists, rather than a
+   custom look bolted on top:
+   - Plain <button>/<input type=text> already get Unraid's native look
+     from webGui/styles/default-base.css (uppercase gradient-bordered
+     buttons, underline-style inputs) - we only reset the default
+     10px/12px button margin, we don't re-style buttons/inputs ourselves.
+     Unraid buttons have no distinct "primary"/"danger" color convention
+     (confirmed - default-base.css's --button-background is a red/orange
+     brand gradient applied uniformly to every button), so we don't
+     invent one either; Delete still confirm()s before acting.
+   - Colors come from webGui/styles/default-color-palette.css's CSS
+     custom properties (--green-500, --red-800 "Unraid Brand Red", etc.)
+     and theme-level variables (--text-color, --border-color, etc. from
+     webGui/styles/themes/<theme>.css) instead of hardcoded hex, so the
+     plugin follows whichever theme (light/dark/etc.) the user has
+     already picked instead of looking static regardless of it.
+   - The container list table uses Unraid's own table.unraid striping/
+     hover convention instead of custom table styling.
+   The compose/env code editor and the logs viewer are deliberately left
+   as a dark, VS-Code-style look regardless of site theme - that's a
+   distinct, common "code editor" convention, not something Unraid's own
+   theme system has an opinion on. */
+
 #stacksUI-root { padding: 10px 0; }
 
 .stacksUI-toolbar { margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
 .stacksUI-toolbar-right { display: flex; gap: 8px; }
 
-.stacksUI-btn {
-  padding: 6px 14px;
-  border: 1px solid #999;
-  border-radius: 4px;
-  background: #f2f2f2;
-  cursor: pointer;
-  font-size: 13px;
-}
-.stacksUI-btn:disabled { opacity: 0.6; cursor: default; }
-.stacksUI-btn-primary { background: #4a90d9; border-color: #3a7bc0; color: #fff; }
-.stacksUI-btn-danger { background: #d9534f; border-color: #c9302c; color: #fff; }
-.stacksUI-btn-small { padding: 2px 8px; font-size: 11px; }
+/* Native buttons already come with their own margin (10px 12px 10px 0)
+   sized for spaced-out settings-page forms; too loose for our compact
+   toolbar/card-action rows, so it's the one thing we reset. */
+.stacksUI-btn { margin: 0; }
+.stacksUI-btn-small { font-size: 1rem; padding: 5px 10px; min-width: 0; }
 
-.stacksUI-empty { color: #888; font-style: italic; }
+.stacksUI-empty { color: var(--alt-text-color); font-style: italic; }
 
 .stacksUI-card {
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   margin-bottom: 10px;
-  background: #fff;
+  background: var(--mild-background-color);
 }
 .stacksUI-card-header {
   display: flex;
@@ -36,18 +52,18 @@
   height: 36px;
   object-fit: contain;
   border-radius: 4px;
-  background: #f5f5f5;
+  background: var(--gray-150);
 }
 .stacksUI-card-logo-placeholder {
   width: 36px;
   height: 36px;
   border-radius: 4px;
-  background: #e0e0e0;
+  background: var(--gray-150);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
-  color: #999;
+  color: var(--alt-text-color);
 }
 .stacksUI-card-name { font-weight: bold; flex: 1; }
 
@@ -55,75 +71,76 @@
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 10px;
-  color: #fff;
+  color: var(--white);
   text-transform: uppercase;
 }
-.stacksUI-badge-running { background: #5cb85c; }
-.stacksUI-badge-stopped { background: #999; }
-.stacksUI-badge-error { background: #d9534f; }
-.stacksUI-badge-exited { background: #999; }
-.stacksUI-badge-created { background: #5bc0de; }
-.stacksUI-badge-restarting { background: #f0ad4e; }
-.stacksUI-badge-paused { background: #777; }
-.stacksUI-badge-unknown { background: #777; }
+.stacksUI-badge-running { background: var(--green-500); }
+.stacksUI-badge-stopped { background: var(--gray-500); }
+.stacksUI-badge-error { background: var(--red-800); }
+.stacksUI-badge-exited { background: var(--gray-500); }
+.stacksUI-badge-created { background: var(--blue-700); }
+.stacksUI-badge-restarting { background: var(--orange-500); }
+.stacksUI-badge-paused { background: var(--gray-600); }
+.stacksUI-badge-unknown { background: var(--gray-600); }
 
 .stacksUI-autostart-label {
-  display: flex; align-items: center; gap: 6px; font-size: 12px; color: #666;
+  display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--alt-text-color);
   cursor: pointer; white-space: nowrap;
 }
 
 .stacksUI-card-actions { display: flex; gap: 6px; }
-.stacksUI-card-caret { transition: transform 0.15s ease; }
-.stacksUI-card.expanded .stacksUI-card-caret { transform: rotate(90deg); }
 
-.stacksUI-card-body { display: none; border-top: 1px solid #eee; padding: 10px 14px; }
+.stacksUI-card-body { display: none; border-top: 1px solid var(--border-color); padding: 10px 14px; }
 .stacksUI-card.expanded .stacksUI-card-body { display: block; }
 
-.stacksUI-containers { width: 100%; border-collapse: collapse; font-size: 13px; }
-.stacksUI-containers th, .stacksUI-containers td { text-align: left; padding: 4px 8px; border-bottom: 1px solid #eee; }
+/* Structural sizing only - striping/hover/border all come from the
+   native table.unraid class applied alongside this one in the markup. */
+.stacksUI-containers { width: 100%; font-size: 13px; }
+
+.stacksUI-card-body-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 
 .stacksUI-modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  position: fixed; inset: 0; background: var(--black-opacity-30);
   display: flex; align-items: center; justify-content: center; z-index: 1000;
 }
 .stacksUI-modal {
-  background: #fff; border-radius: 6px; padding: 20px;
+  background: var(--background-color); color: var(--text-color);
+  border-radius: 6px; padding: 20px;
   width: 600px; max-width: 90vw; max-height: 85vh; overflow-y: auto;
 }
+.stacksUI-modal-narrow { width: 380px; text-align: center; }
 /* Create/edit wizard and the logs popup both need room for pasted
    compose files / long log lines - wider than the default 600px. */
 #stacksUI-modal .stacksUI-modal, #stacksUI-logs-modal .stacksUI-modal { width: 80vw; max-width: 80vw; }
 .stacksUI-modal label { display: block; margin-bottom: 12px; font-size: 13px; }
 .stacksUI-field { display: block; margin-bottom: 12px; font-size: 13px; }
 .stacksUI-field-label-row label { display: inline; margin-bottom: 0; }
-.stacksUI-modal input[type=text] {
-  display: block; width: 100%; margin-top: 4px; padding: 6px; box-sizing: border-box;
-}
 .stacksUI-field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .stacksUI-code {
   display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
   font-family: 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 12.5px; white-space: pre;
 }
-.stacksUI-optional { color: #888; font-weight: normal; }
-.stacksUI-hint { color: #888; font-size: 11px; margin: -8px 0 12px; }
+.stacksUI-optional { color: var(--alt-text-color); font-weight: normal; }
+.stacksUI-hint { color: var(--alt-text-color); font-size: 11px; margin: -8px 0 12px; }
 .stacksUI-modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .stacksUI-spacer { flex: 1 1 auto; }
-.stacksUI-error { color: #d9534f; }
+.stacksUI-error { color: var(--red-800); }
 .stacksUI-validation { margin-top: 10px; padding: 8px 10px; border-radius: 4px; font-size: 12px; white-space: pre-wrap; text-align: left; }
-.stacksUI-validation-ok { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7e1c1; }
-.stacksUI-validation-fail { background: #fdecea; color: #a94442; border: 1px solid #f5c6cb; }
+.stacksUI-validation-ok { background: var(--green-100); color: var(--green-900); border: 1px solid var(--green-500); }
+.stacksUI-validation-fail { background: var(--red-100); color: var(--red-900); border: 1px solid var(--red-500); }
 .stacksUI-logs { max-height: 50vh; overflow: auto; background: #1e1e1e; color: #ddd; padding: 10px; border-radius: 4px; }
 
 /* Editor (compose/env textareas): line-number gutter, dark code-editor
-   look. The fixed height lives on the .stacksUI-editor container itself
-   (set via JS from data-rows) - both the gutter and the textarea fill it
-   at 100% and scroll internally, so a gutter with more line numbers than
-   fit on screen can't stretch the container taller than the textarea
-   (that mismatch used to leave a block of blank space below the
-   textarea's own scrollbar whenever pasted content had more lines than
-   the visible area). */
+   look (deliberately theme-independent, see file header). The fixed
+   height lives on the .stacksUI-editor container itself (set via JS
+   from data-rows) - both the gutter and the textarea fill it at 100%
+   and scroll internally, so a gutter with more line numbers than fit on
+   screen can't stretch the container taller than the textarea (that
+   mismatch used to leave a block of blank space below the textarea's
+   own scrollbar whenever pasted content had more lines than the visible
+   area). */
 .stacksUI-editor {
-  display: flex; margin-top: 4px; border: 1px solid #ccc; border-radius: 4px;
+  display: flex; margin-top: 4px; border: 1px solid var(--border-color); border-radius: 4px;
   overflow: hidden; background: #1e1e1e;
 }
 .stacksUI-editor-gutter {
@@ -143,7 +160,31 @@
    while that action is running, instead of a popup. */
 .stacksUI-spinner-sm {
   display: inline-block; width: 13px; height: 13px; vertical-align: middle;
-  border: 2px solid #ccc; border-top-color: #4a90d9; border-radius: 50%;
+  border: 2px solid var(--gray-300); border-top-color: var(--blue-700);
+  border-radius: 50%;
   animation: stacksUI-spin 0.7s linear infinite;
 }
 @keyframes stacksUI-spin { to { transform: rotate(360deg); } }
+
+/* --- App Store (AppStore.page / js/appStore.js) --- */
+.stacksUI-appstore-heading { margin: 0; font-size: 1.4rem; }
+
+.stacksUI-appstore-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
+}
+.stacksUI-appstore-card {
+  border: 1px solid var(--border-color); border-radius: 6px;
+  background: var(--mild-background-color); padding: 14px;
+  display: flex; flex-direction: column;
+}
+.stacksUI-appstore-card-top { display: flex; align-items: center; gap: 12px; }
+.stacksUI-appstore-logo { width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: var(--gray-150); }
+.stacksUI-appstore-card-titles { display: flex; flex-direction: column; min-width: 0; }
+.stacksUI-appstore-name { font-weight: bold; }
+.stacksUI-appstore-category {
+  font-size: 11px; color: var(--alt-text-color); text-transform: uppercase;
+}
+.stacksUI-appstore-desc {
+  flex: 1 1 auto; font-size: 13px; color: var(--text-color); margin: 10px 0;
+}
+.stacksUI-appstore-card-actions { display: flex; justify-content: flex-end; }

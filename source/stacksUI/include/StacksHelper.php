@@ -12,6 +12,15 @@ define('STACKSUI_DEFAULT_DIR', '/boot/config/plugins/stacksUI');
 define('STACKSUI_SETTINGS_FILE', '/boot/config/plugins/stacksUI/settings.json');
 define('STACKSUI_NAME_RE', '/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/');
 
+// App Store catalog: a public GitHub repo, one directory per app, each
+// holding meta.json (displayName/shortname/category/description/
+// launchUrl/logoUrl) + docker-compose.yml + an optional .env template.
+// Fetched live on every App Store page load (no local caching) - simple,
+// always current, and the catalog is small enough that this is fine.
+define('STACKSUI_APPSTORE_OWNER', 'macmillernz');
+define('STACKSUI_APPSTORE_REPO', 'unraid.compose.apps');
+define('STACKSUI_APPSTORE_BRANCH', 'main');
+
 class StacksUIException extends Exception {}
 class InvalidStackNameException extends StacksUIException {}
 class ComposeCommandException extends StacksUIException {
@@ -188,25 +197,74 @@ function stacksUI_list_names() {
   return $names;
 }
 
+// meta.json's default shape, merged under whatever's actually on disk (or
+// used as-is if the file is missing/unreadable).
+function stacksUI_default_meta() {
+  return ['logoUrl' => null, 'autostart' => false];
+}
+
+// Real bug found 2026-07-13: concurrent requests hitting the same stack's
+// meta.json (e.g. many "autostart" saves firing close together - see the
+// switchbutton fix in stacksUI.js) could interleave a plain
+// file_get_contents() read with another request's plain
+// file_put_contents() write, reading a torn/partial JSON body. That
+// failed json_decode(), silently fell back to the defaults above, and
+// got written straight back out - wiping real data (most visibly
+// logoUrl) with no error anywhere. Every read-then-write of meta.json
+// now happens inside one exclusive-lock critical section via
+// stacksUI_update_meta() below, so a concurrent request's write can
+// never land in the middle of another's read.
 function stacksUI_read_meta($name) {
   $dir = stacksUI_stack_dir($name);
   $metaFile = "$dir/meta.json";
-  $meta = ['logoUrl' => null, 'autostart' => false];
-  if (!file_exists($metaFile)) return $meta;
-  $decoded = json_decode(file_get_contents($metaFile), true);
-  return is_array($decoded) ? array_merge($meta, $decoded) : $meta;
+  if (!file_exists($metaFile)) return stacksUI_default_meta();
+  $fh = fopen($metaFile, 'r');
+  if ($fh === false) return stacksUI_default_meta();
+  try {
+    flock($fh, LOCK_SH);
+    $raw = stream_get_contents($fh);
+  } finally {
+    flock($fh, LOCK_UN);
+    fclose($fh);
+  }
+  $decoded = json_decode($raw, true);
+  return is_array($decoded) ? array_merge(stacksUI_default_meta(), $decoded) : stacksUI_default_meta();
 }
 
-function stacksUI_write_meta($name, $meta) {
+// Opens meta.json once, holds an exclusive lock for the whole
+// read-modify-write cycle, and calls $mutator($currentMeta) to get the
+// value to save - this is the only safe way to change one field (like
+// autostart) without racing a concurrent request's own read/write of the
+// same file. Creates the file (and stack dir) if neither exists yet.
+function stacksUI_update_meta($name, $mutator) {
   $dir = stacksUI_stack_dir($name);
-  file_put_contents("$dir/meta.json", json_encode($meta, JSON_PRETTY_PRINT));
+  if (!is_dir($dir)) mkdir($dir, 0755, true);
+  $fh = fopen("$dir/meta.json", 'c+');
+  if ($fh === false) {
+    throw new StacksUIException("Could not open meta.json for '$name'");
+  }
+  try {
+    flock($fh, LOCK_EX);
+    $raw = stream_get_contents($fh);
+    $decoded = $raw !== '' ? json_decode($raw, true) : null;
+    $current = is_array($decoded) ? array_merge(stacksUI_default_meta(), $decoded) : stacksUI_default_meta();
+    $updated = $mutator($current);
+    ftruncate($fh, 0);
+    rewind($fh);
+    fwrite($fh, json_encode($updated, JSON_PRETTY_PRINT));
+    fflush($fh);
+    return $updated;
+  } finally {
+    flock($fh, LOCK_UN);
+    fclose($fh);
+  }
 }
 
 function stacksUI_set_autostart($name, $autostart) {
-  $existing = stacksUI_read_meta($name);
-  $existing['autostart'] = (bool)$autostart;
-  stacksUI_write_meta($name, $existing);
-  return $existing;
+  return stacksUI_update_meta($name, function ($meta) use ($autostart) {
+    $meta['autostart'] = (bool)$autostart;
+    return $meta;
+  });
 }
 
 function stacksUI_read_stack($name) {
@@ -236,8 +294,9 @@ function stacksUI_write_stack($name, $compose, $env, $meta) {
   if ($env !== null) {
     file_put_contents("$dir/.env", $env);
   }
-  $existing = stacksUI_read_meta($name);
-  stacksUI_write_meta($name, array_merge($existing, $meta ?: []));
+  stacksUI_update_meta($name, function ($existing) use ($meta) {
+    return array_merge($existing, $meta ?: []);
+  });
 
   try {
     stacksUI_backup_stack($name);
@@ -381,6 +440,98 @@ function stacksUI_aggregate_status($containers) {
     if (isset($c['State']) && $c['State'] === 'running') return 'running';
   }
   return 'stopped';
+}
+
+// Fetches a URL with a short timeout and a User-Agent (GitHub's API
+// rejects requests with none) - throws on any transport error or non-2xx
+// status rather than returning a partial/empty body silently.
+function stacksUI_http_get($url) {
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_USERAGENT => 'stacksUI-plugin',
+    CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'],
+  ]);
+  $body = curl_exec($ch);
+  $err = curl_error($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+  if ($body === false || $err !== '') {
+    throw new StacksUIException("Could not reach the app store ($err)");
+  }
+  if ($code >= 400) {
+    throw new StacksUIException("App store returned HTTP $code for $url");
+  }
+  return $body;
+}
+
+function stacksUI_appstore_raw_url($slug, $file) {
+  return 'https://raw.githubusercontent.com/' . STACKSUI_APPSTORE_OWNER . '/' . STACKSUI_APPSTORE_REPO .
+    '/' . STACKSUI_APPSTORE_BRANCH . '/' . rawurlencode($slug) . '/' . $file;
+}
+
+// Lists every app in the catalog: one GitHub API call to list the repo's
+// top-level directories, then one raw fetch per directory for its
+// meta.json (compose/env are only fetched on demand, at install time -
+// see stacksUI_appstore_get()). Apps already installed (matched by
+// meta.json's shortname against the real stack list) are left out
+// entirely rather than shown as "installed", per how this plugin's
+// catalog is meant to be used - it's not a status dashboard.
+function stacksUI_appstore_list() {
+  $apiUrl = 'https://api.github.com/repos/' . STACKSUI_APPSTORE_OWNER . '/' . STACKSUI_APPSTORE_REPO . '/contents/';
+  $entries = json_decode(stacksUI_http_get($apiUrl), true);
+  if (!is_array($entries)) {
+    throw new StacksUIException('Unexpected response from the app store catalog.');
+  }
+
+  $installed = array_flip(stacksUI_list_names());
+  $apps = [];
+  foreach ($entries as $entry) {
+    if (($entry['type'] ?? '') !== 'dir') continue;
+    $slug = $entry['name'];
+    if (!preg_match(STACKSUI_NAME_RE, $slug)) continue;
+    try {
+      $meta = json_decode(stacksUI_http_get(stacksUI_appstore_raw_url($slug, 'meta.json')), true);
+    } catch (Exception $e) {
+      continue; // this app's meta.json is missing/unreachable - skip it, not fatal for the rest
+    }
+    if (!is_array($meta)) continue;
+    $shortname = $meta['shortname'] ?? $slug;
+    if (isset($installed[$shortname])) continue;
+    $apps[] = [
+      'slug' => $slug,
+      'displayName' => $meta['displayName'] ?? $slug,
+      'shortname' => $shortname,
+      'category' => $meta['category'] ?? '',
+      'description' => $meta['description'] ?? '',
+      'launchUrl' => $meta['launchUrl'] ?? '',
+      'logoUrl' => $meta['logoUrl'] ?? '',
+    ];
+  }
+  return $apps;
+}
+
+// Fetches one app's full detail for the install wizard: meta.json again
+// (fresh, not reused from the list call) plus its docker-compose.yml
+// (required) and .env (optional - not every app needs one).
+function stacksUI_appstore_get($slug) {
+  if (!preg_match(STACKSUI_NAME_RE, $slug)) {
+    throw new StacksUIException('Invalid app slug.');
+  }
+  $meta = json_decode(stacksUI_http_get(stacksUI_appstore_raw_url($slug, 'meta.json')), true);
+  if (!is_array($meta)) {
+    throw new StacksUIException('This app has no valid meta.json.');
+  }
+  $compose = stacksUI_http_get(stacksUI_appstore_raw_url($slug, 'docker-compose.yml'));
+  $env = '';
+  try {
+    $env = stacksUI_http_get(stacksUI_appstore_raw_url($slug, '.env'));
+  } catch (Exception $e) {
+    // .env is optional - not every app needs one
+  }
+  return ['meta' => $meta, 'compose' => $compose, 'env' => $env];
 }
 
 function stacksUI_list_stacks() {

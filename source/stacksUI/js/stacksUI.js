@@ -6,27 +6,17 @@
   var ajaxUrl = '/plugins/stacksUI/include/ajax.php';
 
   var $list = $('#stacksUI-list');
-  var $modal = $('#stacksUI-modal');
-  var $modalTitle = $('#stacksUI-modal-title');
-  var $modalError = $('#stacksUI-modal-error');
-  var $fieldName = $('#stacksUI-field-name');
-  var $fieldLogo = $('#stacksUI-field-logo');
-  var $fieldCompose = $('#stacksUI-field-compose');
-  var $fieldEnv = $('#stacksUI-field-env');
   var $logsModal = $('#stacksUI-logs-modal');
   var $logsTitle = $('#stacksUI-logs-title');
   var $logsContent = $('#stacksUI-logs-content');
-  var $modalValidation = $('#stacksUI-modal-validation');
   var $settingsModal = $('#stacksUI-settings-modal');
   var $settingsDir = $('#stacksUI-settings-dir');
   var $settingsDataRoot = $('#stacksUI-settings-dataroot');
   var $settingsBackup = $('#stacksUI-settings-backup');
   var $settingsError = $('#stacksUI-settings-error');
 
-  var editingName = null; // null => create mode
   var logsStackName = null;
   var settings = { stacksDir: '', dataRoot: '/mnt/user/appdata' };
-  var envTemplateDirty = false; // true once the user edits .env themselves in create mode
 
   function escapeHtml(s) {
     return $('<div>').text(s == null ? '' : s).html();
@@ -78,7 +68,7 @@
         '<td>' + networkList(c) + '</td>' +
         '</tr>';
     }).join('');
-    return '<table class="stacksUI-containers"><thead><tr>' +
+    return '<table class="stacksUI-containers unraid"><thead><tr>' +
       '<th>Service</th><th>Image</th><th>State</th><th>Ports</th><th>Network (IP)</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
@@ -101,18 +91,20 @@
         statusBadge(stack.status) +
         '<label class="stacksUI-autostart-label" title="Start this stack automatically when the array starts">' +
           '<span>Autostart</span>' +
-          '<input type="checkbox" class="stacksUI-autostart"' + (autostart ? ' checked' : '') + '>' +
+          '<input type="checkbox" class="stacksUI-autostart" data-autostart="' + (autostart ? '1' : '0') + '"' + (autostart ? ' checked' : '') + '>' +
         '</label>' +
         '<div class="stacksUI-card-actions">' +
           '<button class="stacksUI-btn stacksUI-action-toggle" data-action="' + toggleAction + '">' + toggleLabel + '</button>' +
           '<button class="stacksUI-btn stacksUI-action-restart">Restart</button>' +
           '<button class="stacksUI-btn stacksUI-action-logs">Logs</button>' +
           '<button class="stacksUI-btn stacksUI-action-edit">Edit</button>' +
-          '<button class="stacksUI-btn stacksUI-btn-danger stacksUI-action-delete">Delete</button>' +
         '</div>' +
-        '<span class="stacksUI-card-caret">&#9656;</span>' +
       '</div>' +
-      '<div class="stacksUI-card-body">' + renderContainers(stack.containers || []) + '</div>'
+      '<div class="stacksUI-card-body">' + renderContainers(stack.containers || []) +
+        '<div class="stacksUI-card-body-actions">' +
+          '<button class="stacksUI-btn stacksUI-action-delete">Delete</button>' +
+        '</div>' +
+      '</div>'
     );
     return $card;
   }
@@ -138,9 +130,20 @@
     $(this).closest('.stacksUI-card').toggleClass('expanded');
   });
 
+  // jquery.switchbutton.js's own init (_initLayout -> _toggleSwitch) fires
+  // a synthetic 'change' event on every checkbox it wraps, every single
+  // time - not just on a real user click. Since loadList() re-initializes
+  // the widget on every refresh, that meant an unnecessary "autostart"
+  // POST fired for every stack on every single page load, regardless of
+  // whether anything actually changed - compare against the value the
+  // server actually told us (data-autostart, set at render time) and only
+  // POST when a real user toggle changed it.
   $list.on('change', '.stacksUI-autostart', function () {
-    var name = $(this).closest('.stacksUI-card').data('name');
-    var checked = $(this).is(':checked');
+    var $checkbox = $(this);
+    var checked = $checkbox.is(':checked');
+    var was = $checkbox.data('autostart') === 1 || $checkbox.data('autostart') === '1';
+    if (checked === was) return;
+    var name = $checkbox.closest('.stacksUI-card').data('name');
     post('autostart', { name: name, value: checked ? '1' : '0' });
   });
 
@@ -199,7 +202,7 @@
     e.stopPropagation();
     var name = $(this).closest('.stacksUI-card').data('name');
     get('get', { name: name }).done(function (stack) {
-      openModal(stack);
+      StacksUIModal.open(stack, { editing: true, onSaved: onStackSaved });
     });
   });
 
@@ -209,139 +212,12 @@
     openLogs(name);
   });
 
-  // --- Editor gutter (line numbers) for the compose/env textareas ---
-  function syncGutter($textarea) {
-    var $gutter = $textarea.closest('.stacksUI-editor').find('.stacksUI-editor-gutter');
-    var lines = $textarea.val().split('\n').length;
-    var nums = [];
-    for (var i = 1; i <= lines; i++) nums.push(i);
-    $gutter.text(nums.join('\n'));
+  function onStackSaved(result) {
+    loadList();
+    if (result && result.backupWarning) alert(result.backupWarning);
   }
 
-  function initEditor($textarea) {
-    var $wrap = $textarea.closest('.stacksUI-editor');
-    var rows = parseInt($wrap.attr('data-rows'), 10) || 10;
-    // Height goes on the wrapper, not the textarea - both the textarea
-    // and the gutter fill it at 100% and scroll internally (see CSS),
-    // so a gutter with many line numbers can't stretch the box taller
-    // than the textarea itself.
-    $wrap.css('height', (rows * 18 + 16) + 'px');
-    syncGutter($textarea);
-    $textarea.off('.stacksUIEditor').on('input.stacksUIEditor', function () { syncGutter($textarea); });
-    $textarea.on('scroll.stacksUIEditor', function () {
-      $wrap.find('.stacksUI-editor-gutter').scrollTop($textarea.scrollTop());
-    });
-    // Tab key inserts spaces instead of moving focus - much less painful
-    // for editing YAML, where indentation is meaningful.
-    $textarea.on('keydown.stacksUIEditor', function (e) {
-      if (e.key !== 'Tab') return;
-      e.preventDefault();
-      var el = this;
-      var start = el.selectionStart, end = el.selectionEnd;
-      var val = $textarea.val();
-      $textarea.val(val.slice(0, start) + '  ' + val.slice(end));
-      el.selectionStart = el.selectionEnd = start + 2;
-      syncGutter($textarea);
-    });
-  }
-
-  // For a brand new stack, seeds .env with a DATA_ROOT suggestion based on
-  // the configured default data root + the stack name typed so far - kept
-  // in sync as the name changes, but only while the user hasn't touched
-  // .env themselves (envTemplateDirty), so we never clobber a real edit.
-  function envTemplate(stackName) {
-    return '# Recommended: Add or replace your volumes with "${DATA_ROOT}/..."\n' +
-      'DATA_ROOT=' + settings.dataRoot + '/' + (stackName || '');
-  }
-
-  function refreshEnvTemplate() {
-    if (editingName || envTemplateDirty) return;
-    $fieldEnv.val(envTemplate($fieldName.val().trim()));
-    syncGutter($fieldEnv);
-  }
-
-  function openModal(stack) {
-    editingName = stack ? stack.name : null;
-    envTemplateDirty = !!editingName;
-    $modalTitle.text(editingName ? 'Edit Stack: ' + editingName : 'New Stack');
-    $fieldName.val(editingName || '').prop('disabled', !!editingName);
-    $fieldLogo.val((stack && stack.meta && stack.meta.logoUrl) || '');
-    $fieldCompose.val((stack && stack.compose) || '');
-    $fieldEnv.val(editingName ? ((stack && stack.env) || '') : envTemplate(''));
-    $modalError.hide().text('');
-    $modalValidation.hide().removeClass('stacksUI-validation-ok stacksUI-validation-fail').text('');
-    $modal.show();
-    initEditor($fieldCompose);
-    initEditor($fieldEnv);
-  }
-
-  $('#stacksUI-new').on('click', function () { openModal(null); });
-  $('#stacksUI-modal-cancel').on('click', function () { $modal.hide(); });
-  $fieldName.on('input.stacksUITemplate', refreshEnvTemplate);
-  $fieldEnv.on('input.stacksUITemplateDirty', function () {
-    if (!editingName) envTemplateDirty = true;
-  });
-
-  $('#stacksUI-modal-verify').on('click', function () {
-    var $btn = $(this);
-    var originalText = $btn.text();
-    $modalValidation.hide().removeClass('stacksUI-validation-ok stacksUI-validation-fail').text('');
-    $btn.prop('disabled', true).text('Verifying…');
-    post('validate', { compose: $fieldCompose.val(), env: $fieldEnv.val() }).done(function () {
-      $modalValidation.addClass('stacksUI-validation-ok').text('Compose syntax looks valid.').show();
-    }).fail(function (xhr) {
-      var body = (xhr.responseJSON) || {};
-      var msg = body.error || 'Validation failed.';
-      $modalValidation.addClass('stacksUI-validation-fail').text(msg + (body.stderr ? '\n' + body.stderr : '')).show();
-    }).always(function () {
-      $btn.prop('disabled', false).text(originalText);
-    });
-  });
-
-  function readFileInto($textarea, file) {
-    if (!file) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      $textarea.val(reader.result);
-      syncGutter($textarea);
-    };
-    reader.readAsText(file);
-  }
-
-  $('#stacksUI-upload-compose-btn').on('click', function () { $('#stacksUI-upload-compose').trigger('click'); });
-  $('#stacksUI-upload-compose').on('change', function () {
-    readFileInto($fieldCompose, this.files[0]);
-    $(this).val('');
-  });
-
-  $('#stacksUI-upload-env-btn').on('click', function () { $('#stacksUI-upload-env').trigger('click'); });
-  $('#stacksUI-upload-env').on('change', function () {
-    readFileInto($fieldEnv, this.files[0]);
-    $(this).val('');
-  });
-
-  $('#stacksUI-modal-save').on('click', function () {
-    var name = $fieldName.val().trim();
-    var compose = $fieldCompose.val();
-    if (!name || !compose.trim()) {
-      $modalError.text('Stack name and compose file are required.').show();
-      return;
-    }
-    var action = editingName ? 'update' : 'create';
-    post(action, {
-      name: name,
-      compose: compose,
-      env: $fieldEnv.val(),
-      logoUrl: $fieldLogo.val().trim(),
-    }).done(function (result) {
-      $modal.hide();
-      loadList();
-      if (result && result.backupWarning) alert(result.backupWarning);
-    }).fail(function (xhr) {
-      var msg = (xhr.responseJSON && xhr.responseJSON.error) || 'Failed to save stack.';
-      $modalError.text(msg).show();
-    });
-  });
+  $('#stacksUI-new').on('click', function () { StacksUIModal.open(null, { onSaved: onStackSaved }); });
 
   function openLogs(name) {
     logsStackName = name;
@@ -365,6 +241,7 @@
   function loadSettings() {
     return get('settings').done(function (result) {
       settings = result;
+      StacksUIModal.setDataRoot(settings.dataRoot);
     });
   }
 
@@ -395,6 +272,7 @@
     $btn.prop('disabled', true).text('Saving…');
     post('save_settings', { stacksDir: stacksDir, dataRoot: dataRoot, backupPath: backupPath }).done(function (result) {
       settings = result.settings;
+      StacksUIModal.setDataRoot(settings.dataRoot);
       $settingsModal.hide();
       loadList();
 

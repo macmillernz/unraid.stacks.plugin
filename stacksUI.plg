@@ -18,10 +18,11 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.11.1">
-<!ENTITY pluginURL "https://raw.githubusercontent.com/you/unraid-ui/main/stacks-ui-plugin/stacksUI.plg">
-<!ENTITY SRC       "https://github.com/you/unraid-ui/releases/download/stacksUI-&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "REPLACE_WITH_TXZ_MD5">
+<!ENTITY version   "2026.07.13.2">
+<!-- Confirmed real (matches `git remote -v`), not a guess. -->
+<!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/stacksUI/main/stacksUI.plg">
+<!ENTITY SRC       "https://github.com/macmillernz/stacksUI/releases/download/&version;/stacksUI-&version;.txz">
+<!ENTITY MD5       "0202bc1ca3e455a31c58c8d613acae9b">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -29,6 +30,82 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.13.2
+- Fixed a real data-loss bug: repeatedly reloading the Stacks page could
+  silently wipe every stack's logoUrl (and other meta.json fields) back
+  to blank. Root cause was two compounding bugs: (1) the bundled
+  jquery.switchbutton.js widget fires a synthetic "change" event on every
+  Autostart checkbox on every single page load/list refresh, not just on
+  a real user click, causing an unnecessary save for every stack every
+  time; (2) meta.json's read-then-write had no file locking, so those
+  frequent concurrent saves could race - one request's write landing
+  mid-read of another - producing a torn/unparseable JSON body that
+  silently fell back to blank defaults and got written back out. Fixed
+  (1) by only saving when the checkbox's state actually differs from
+  what the server last reported, and (2) by making every meta.json
+  read-modify-write happen inside one exclusive file lock, so concurrent
+  requests can no longer interleave.
+###2026.07.13.1
+- Added a new "SAS" tab: an app store showing available apps from the
+  public unraid.compose.apps catalog (github.com/macmillernz/
+  unraid.compose.apps), fetched live on every visit. Each app shows as a
+  card (logo, name, category, description); clicking Install opens the
+  same New Stack wizard used on the Stacks tab, pre-filled with that
+  app's compose file, env template, and logo. Apps already installed as
+  a stack are left out of the catalog entirely.
+- Refactored the New/Edit Stack wizard into a shared component
+  (js/stackModal.js + include/stack_modal.php) used by both the Stacks
+  and SAS tabs, instead of being specific to the Stacks page - no
+  behavior change for existing New Stack/Edit Stack flows.
+###2026.07.11.7
+- UI cleanup: removed the arrow/caret next to each stack card - clicking
+  anywhere on the card header already expands it, so the arrow was
+  redundant. Moved the Delete button out of the always-visible action
+  row and down below the expanded container list, so it's no longer
+  sitting right next to Start/Stop/Restart/Edit.
+###2026.07.11.6
+- New plugin icon: three overlaid rounded squares with the middle one
+  filled (in Unraid's own brand orange), replacing the old solid black
+  icon that was invisible against dark theme backgrounds.
+- Fixed the Stacks tab having no icon and a broken, squashed layout on
+  the Azure and Grey themes (both use a vertical sidebar nav where every
+  tab is shown as a small icon that expands to reveal its name on
+  hover) - added a Code= header (a bundled FontAwesome glyph, "clone" -
+  two overlapping squares) so Stacks now gets a proper icon and the same
+  hover pop-out behavior as every built-in tab, instead of falling back
+  to plain unstyled text. The icon glyph's color already follows the
+  active theme automatically since it's a font character, not an image.
+###2026.07.11.5
+- Restyled to use Unraid's own native look instead of a custom one:
+  plain buttons/inputs now inherit Unraid's native gradient-bordered
+  button and underline-style input CSS (removed our own colors), status
+  badges/dots and the container list table now use Unraid's own color
+  palette variables and table.unraid striping instead of hardcoded hex,
+  so the plugin follows whichever theme is active. The compose/env code
+  editor and log viewer keep their own dark look on purpose - that's a
+  separate code-editor convention, not something tied to site theme.
+###2026.07.11.4
+- Fixed a second, more serious Dashboard tile bug: a nested table used to
+  list stacks caused the browser to auto-insert an implicit tbody with no
+  title attribute, which crashed Unraid's own dashboard init script
+  (addProperties) and left the whole Dashboard blank below the nav bar -
+  confirmed via a real browser console error, not guessed. Rebuilt the
+  tile with plain div/span markup only (no table at all). Also
+  redesigned the tile: stacks now show 3-per-row with their logo and a
+  small green/red status dot, instead of a plain text list.
+###2026.07.11.3
+- Fixed: the 2026.07.11.2 Dashboard tile broke the entire Main Dashboard
+  (rendered blank). Root cause: any .page file without Markdown="false"
+  in its header has its whole body run through a full Markdown parser
+  before rendering - ours didn't set it, so our style block ended up
+  nested inside an invalid paragraph element, corrupting the page.
+  Added Markdown="false" to DashboardTile.page's header.
+###2026.07.11.2
+- Added a "Stacks" tile to the Main Dashboard (stack name + running/
+  stopped) via Unraid's own documented custom-tile mechanism
+  (DashboardCustomTileExample.page-/$mytiles) - no core file patched.
+  Hides the built-in Docker dashboard tile via a plain CSS rule, same
+  file, same reason (no core file patch needed).
 ###2026.07.11.1
 - Fixed: author/version weren't showing on the Plugins page (the
   installed .plg descriptor had gone missing on the test box - now

@@ -1,0 +1,29 @@
+Menu="Tasks:61"
+Title="SAS"
+Icon="stacks.png"
+Code="f07a"
+Markdown="false"
+---
+<?PHP
+// $var, $docroot etc. are already populated by webGui/template.php before
+// this page's body is evaluated - no require needed to read
+// $var['csrf_token'] below (see Stacks.page for the same convention).
+?>
+<link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
+
+<div id="stacksUI-appstore-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
+  <div class="stacksUI-toolbar">
+    <h2 class="stacksUI-appstore-heading">Stacks App Store</h2>
+    <div class="stacksUI-toolbar-right">
+      <button id="stacksUI-appstore-refresh" class="stacksUI-btn">Refresh</button>
+    </div>
+  </div>
+  <div id="stacksUI-appstore-list" class="stacksUI-appstore-grid">
+    <p class="stacksUI-empty">Loading catalog&hellip;</p>
+  </div>
+</div>
+
+<?php include "$docroot/plugins/stacksUI/include/stack_modal.php"; ?>
+
+<script src="/plugins/stacksUI/js/stackModal.js"></script>
+<script src="/plugins/stacksUI/js/appStore.js"></script>
