@@ -34,6 +34,15 @@
         <textarea id="stacksUI-field-env" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
       </div>
     </div>
+    <div class="stacksUI-field">
+      <div class="stacksUI-field-label-row">
+        <label>Additional files <span class="stacksUI-optional">(optional)</span></label>
+        <button type="button" id="stacksUI-upload-extra-btn" class="stacksUI-btn stacksUI-btn-small">Add File(s)</button>
+        <input type="file" id="stacksUI-upload-extra" multiple style="display:none">
+      </div>
+      <p class="stacksUI-hint">For files docker-compose.yml refers to via "extends"/"include", or anything else this stack needs alongside its main compose/env files.</p>
+      <ul id="stacksUI-extra-files-list" class="stacksUI-extra-files-list"></ul>
+    </div>
     <p id="stacksUI-modal-error" class="stacksUI-error" style="display:none"></p>
     <p id="stacksUI-modal-validation" class="stacksUI-validation" style="display:none"></p>
     <div class="stacksUI-modal-actions">

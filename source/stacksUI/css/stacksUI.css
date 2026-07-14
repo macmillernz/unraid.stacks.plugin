@@ -122,6 +122,13 @@
 }
 .stacksUI-optional { color: var(--alt-text-color); font-weight: normal; }
 .stacksUI-hint { color: var(--alt-text-color); font-size: 11px; margin: -8px 0 12px; }
+.stacksUI-extra-files-list { list-style: none; margin: 0; padding: 0; }
+.stacksUI-extra-file {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; margin-bottom: 6px;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 12.5px;
+}
+.stacksUI-extra-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .stacksUI-modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .stacksUI-spacer { flex: 1 1 auto; }
 .stacksUI-error { color: var(--red-800); }
@@ -167,8 +174,6 @@
 @keyframes stacksUI-spin { to { transform: rotate(360deg); } }
 
 /* --- App Store (AppStore.page / js/appStore.js) --- */
-.stacksUI-appstore-heading { margin: 0; font-size: 1.4rem; }
-
 .stacksUI-appstore-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
 }

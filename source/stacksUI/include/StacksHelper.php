@@ -267,6 +267,59 @@ function stacksUI_set_autostart($name, $autostart) {
   });
 }
 
+// Filenames the stack itself owns - never user-uploadable "extra" files.
+const STACKSUI_RESERVED_FILENAMES = ['docker-compose.yml', '.env', 'meta.json'];
+
+// Extra files are for anything a stack's docker-compose.yml needs
+// alongside it beyond the usual compose/.env - most commonly a file
+// referenced via Compose's own `extends:`/`include:` keys. Restricted to
+// a flat filename (no "/", no ".."), so a malicious name can never
+// escape the stack's own directory.
+function stacksUI_validate_extra_filename($fname) {
+  if (!is_string($fname) || !preg_match('/^[a-zA-Z0-9._-]{1,128}$/', $fname) || $fname === '.' || $fname === '..') {
+    throw new StacksUIException("Invalid additional file name: " . var_export($fname, true));
+  }
+  if (in_array($fname, STACKSUI_RESERVED_FILENAMES, true)) {
+    throw new StacksUIException("\"$fname\" is reserved for this stack's own files");
+  }
+}
+
+// Lists a stack's "extra" files (anything in its directory besides the
+// files this plugin manages itself) - flat files only, subdirectories
+// are left alone.
+function stacksUI_list_extra_files($name) {
+  $dir = stacksUI_stack_dir($name);
+  if (!is_dir($dir)) return [];
+  $files = [];
+  foreach (scandir($dir) as $entry) {
+    if ($entry === '.' || $entry === '..') continue;
+    if (in_array($entry, STACKSUI_RESERVED_FILENAMES, true)) continue;
+    if (is_dir("$dir/$entry")) continue;
+    $files[] = $entry;
+  }
+  sort($files);
+  return $files;
+}
+
+// Replaces a stack's whole set of extra files with exactly $files
+// (name => content) - anything already on disk that isn't in $files is
+// removed, so the wizard's file list always matches what's really
+// there rather than only ever adding.
+function stacksUI_write_extra_files($name, $files) {
+  $dir = stacksUI_stack_dir($name);
+  if (!is_dir($dir)) mkdir($dir, 0755, true);
+  $keep = array_keys($files);
+  foreach (stacksUI_list_extra_files($name) as $existing) {
+    if (!in_array($existing, $keep, true)) {
+      @unlink("$dir/$existing");
+    }
+  }
+  foreach ($files as $fname => $content) {
+    stacksUI_validate_extra_filename($fname);
+    file_put_contents("$dir/$fname", $content);
+  }
+}
+
 function stacksUI_read_stack($name) {
   $dir = stacksUI_stack_dir($name);
   $composeFile = "$dir/docker-compose.yml";
@@ -274,18 +327,24 @@ function stacksUI_read_stack($name) {
     throw new StacksUIException("Stack '$name' not found");
   }
   $envFile = "$dir/.env";
+  $extraFiles = [];
+  foreach (stacksUI_list_extra_files($name) as $fname) {
+    $extraFiles[] = ['name' => $fname, 'content' => file_get_contents("$dir/$fname")];
+  }
   return [
     'name' => $name,
     'compose' => file_get_contents($composeFile),
     'env' => file_exists($envFile) ? file_get_contents($envFile) : '',
     'meta' => stacksUI_read_meta($name),
+    'extraFiles' => $extraFiles,
   ];
 }
 
 // Returns a backup-failure message on failure, or null if backups are
 // disabled or succeeded - never throws, so a broken/unreachable backup
-// path can't block saving the actual stack.
-function stacksUI_write_stack($name, $compose, $env, $meta) {
+// path can't block saving the actual stack. $extraFiles is always the
+// full authoritative set (name => content) - see stacksUI_write_extra_files().
+function stacksUI_write_stack($name, $compose, $env, $meta, $extraFiles = []) {
   $dir = stacksUI_stack_dir($name);
   if (!is_dir($dir)) {
     mkdir($dir, 0755, true);
@@ -294,6 +353,7 @@ function stacksUI_write_stack($name, $compose, $env, $meta) {
   if ($env !== null) {
     file_put_contents("$dir/.env", $env);
   }
+  stacksUI_write_extra_files($name, $extraFiles);
   stacksUI_update_meta($name, function ($existing) use ($meta) {
     return array_merge($existing, $meta ?: []);
   });
@@ -361,13 +421,20 @@ function stacksUI_compose_run($name, $args) {
 // (parses/resolves the file but starts nothing), then cleans up. Safe to
 // call for a stack that doesn't exist yet (create wizard) or mid-edit
 // (before saving over the real files).
-function stacksUI_validate_compose($compose, $env) {
+function stacksUI_validate_compose($compose, $env, $extraFiles = []) {
   $dir = sys_get_temp_dir() . '/stacksUI-validate-' . bin2hex(random_bytes(8));
   mkdir($dir, 0700, true);
   try {
     file_put_contents("$dir/docker-compose.yml", $compose);
     if ($env !== null && $env !== '') {
       file_put_contents("$dir/.env", $env);
+    }
+    // So a compose file using "extends:"/"include:" to pull in one of
+    // these actually resolves during validation instead of failing with
+    // a spurious "file not found".
+    foreach ($extraFiles as $fname => $content) {
+      stacksUI_validate_extra_filename($fname);
+      file_put_contents("$dir/$fname", $content);
     }
     return stacksUI_shell_run('docker compose config --quiet', $dir);
   } finally {

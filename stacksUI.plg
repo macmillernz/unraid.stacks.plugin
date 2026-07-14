@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.13.2">
+<!ENTITY version   "2026.07.14.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "8623d49e410d57544b6a4563cddbca2d">
+<!ENTITY MD5       "627608fe3eaa43c724ad108d6332644b">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,17 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.14.1
+- App Store tab renamed from "SAS" to "Stacks App Store" (both the nav
+  label and the in-page heading, which is now removed entirely since the
+  tab name already says it).
+- Added support for uploading additional files alongside a stack's
+  compose/env in the New/Edit Stack wizard - for anything docker-compose.yml
+  references via "extends:"/"include:", or any other file a stack needs.
+  Files are stored alongside docker-compose.yml/.env, included when
+  verifying compose syntax, and shown back when editing an existing
+  stack. Restricted to flat filenames (no path separators) so an
+  uploaded name can never write outside the stack's own directory.
 ###2026.07.13.2
 - Fixed a real data-loss bug: repeatedly reloading the Stacks page could
   silently wipe every stack's logoUrl (and other meta.json fields) back

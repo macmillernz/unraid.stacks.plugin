@@ -32,11 +32,35 @@
   var $fieldCompose = $('#stacksUI-field-compose');
   var $fieldEnv = $('#stacksUI-field-env');
   var $modalValidation = $('#stacksUI-modal-validation');
+  var $extraFilesList = $('#stacksUI-extra-files-list');
 
   var editingName = null; // null => create mode
   var envTemplateDirty = false; // true once the user edits .env themselves in create mode
   var dataRoot = '/mnt/user/appdata'; // set via setDataRoot() once the caller's own settings load
   var onSaved = function () {};
+  var extraFiles = []; // [{name, content}] - additional files alongside compose/.env
+
+  function escapeHtml(s) {
+    return $('<div>').text(s == null ? '' : s).html();
+  }
+
+  function renderExtraFiles() {
+    $extraFilesList.empty();
+    extraFiles.forEach(function (f, i) {
+      $extraFilesList.append(
+        '<li class="stacksUI-extra-file" data-index="' + i + '">' +
+          '<span class="stacksUI-extra-file-name">' + escapeHtml(f.name) + '</span>' +
+          '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-extra-file-remove">Remove</button>' +
+        '</li>'
+      );
+    });
+  }
+
+  $extraFilesList.on('click', '.stacksUI-extra-file-remove', function () {
+    var i = parseInt($(this).closest('.stacksUI-extra-file').attr('data-index'), 10);
+    extraFiles.splice(i, 1);
+    renderExtraFiles();
+  });
 
   // --- Editor gutter (line numbers) for the compose/env textareas ---
   function syncGutter($textarea) {
@@ -97,6 +121,8 @@
     $fieldLogo.val((stack && stack.meta && stack.meta.logoUrl) || '');
     $fieldCompose.val((stack && stack.compose) || '');
     $fieldEnv.val((stack && stack.env) || (editing ? '' : envTemplate('')));
+    extraFiles = (stack && stack.extraFiles) ? stack.extraFiles.slice() : [];
+    renderExtraFiles();
     $modalError.hide().text('');
     $modalValidation.hide().removeClass('stacksUI-validation-ok stacksUI-validation-fail').text('');
     $modal.show();
@@ -115,7 +141,7 @@
     var originalText = $btn.text();
     $modalValidation.hide().removeClass('stacksUI-validation-ok stacksUI-validation-fail').text('');
     $btn.prop('disabled', true).text('Verifying…');
-    post('validate', { compose: $fieldCompose.val(), env: $fieldEnv.val() }).done(function () {
+    post('validate', { compose: $fieldCompose.val(), env: $fieldEnv.val(), extraFiles: JSON.stringify(extraFiles) }).done(function () {
       $modalValidation.addClass('stacksUI-validation-ok').text('Compose syntax looks valid.').show();
     }).fail(function (xhr) {
       var body = (xhr.responseJSON) || {};
@@ -148,6 +174,27 @@
     $(this).val('');
   });
 
+  $('#stacksUI-upload-extra-btn').on('click', function () { $('#stacksUI-upload-extra').trigger('click'); });
+  $('#stacksUI-upload-extra').on('change', function () {
+    var files = Array.prototype.slice.call(this.files);
+    var input = this;
+    var pending = files.length;
+    if (!pending) return;
+    files.forEach(function (file) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        // Replace an existing entry with the same name rather than duplicating it.
+        var existingIndex = extraFiles.findIndex(function (f) { return f.name === file.name; });
+        var entry = { name: file.name, content: reader.result };
+        if (existingIndex >= 0) extraFiles[existingIndex] = entry;
+        else extraFiles.push(entry);
+        if (--pending === 0) renderExtraFiles();
+      };
+      reader.readAsText(file);
+    });
+    $(input).val('');
+  });
+
   $('#stacksUI-modal-save').on('click', function () {
     var name = $fieldName.val().trim();
     var compose = $fieldCompose.val();
@@ -161,6 +208,7 @@
       compose: compose,
       env: $fieldEnv.val(),
       logoUrl: $fieldLogo.val().trim(),
+      extraFiles: JSON.stringify(extraFiles),
     }).done(function (result) {
       $modal.hide();
       onSaved(result);

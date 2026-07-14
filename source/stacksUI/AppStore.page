@@ -1,5 +1,5 @@
 Menu="Tasks:61"
-Title="SAS"
+Title="Stacks App Store"
 Icon="stacks.png"
 Code="f07a"
 Markdown="false"
@@ -13,7 +13,6 @@ Markdown="false"
 
 <div id="stacksUI-appstore-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
   <div class="stacksUI-toolbar">
-    <h2 class="stacksUI-appstore-heading">Stacks App Store</h2>
     <div class="stacksUI-toolbar-right">
       <button id="stacksUI-appstore-refresh" class="stacksUI-btn">Refresh</button>
     </div>

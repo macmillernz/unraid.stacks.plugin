@@ -13,6 +13,23 @@ header('Content-Type: application/json');
 
 $action = $_REQUEST['action'] ?? '';
 
+// Decodes the wizard's extraFiles field (a JSON array of {name, content})
+// into a plain name => content array. Silently drops anything malformed
+// rather than failing the whole request - filename validation itself
+// still happens later, in stacksUI_write_extra_files()/validate_compose().
+function stacksUI_decode_extra_files($json) {
+  $decoded = json_decode($json ?? '[]', true);
+  $files = [];
+  if (is_array($decoded)) {
+    foreach ($decoded as $f) {
+      if (is_array($f) && isset($f['name'], $f['content']) && is_string($f['name']) && is_string($f['content'])) {
+        $files[$f['name']] = $f['content'];
+      }
+    }
+  }
+  return $files;
+}
+
 function stacksUI_fail($e) {
   if ($e instanceof InvalidStackNameException) {
     http_response_code(400);
@@ -54,6 +71,7 @@ try {
       $compose = $_POST['compose'] ?? '';
       $env = $_POST['env'] ?? '';
       $logoUrl = trim($_POST['logoUrl'] ?? '');
+      $extraFiles = stacksUI_decode_extra_files($_POST['extraFiles'] ?? '[]');
       if ($compose === '') {
         http_response_code(400);
         echo json_encode(['error' => 'Compose file contents are required']);
@@ -63,7 +81,7 @@ try {
       if ($action === 'create') {
         $meta['createdAt'] = date('c');
       }
-      $backupError = stacksUI_write_stack($name, $compose, $env, $meta);
+      $backupError = stacksUI_write_stack($name, $compose, $env, $meta, $extraFiles);
       $response = ['name' => $name];
       if ($backupError) {
         $response['backupWarning'] = "Stack saved, but backup failed: $backupError";
@@ -72,7 +90,8 @@ try {
       break;
 
     case 'validate':
-      stacksUI_validate_compose($_POST['compose'] ?? '', $_POST['env'] ?? '');
+      $extraFiles = stacksUI_decode_extra_files($_POST['extraFiles'] ?? '[]');
+      stacksUI_validate_compose($_POST['compose'] ?? '', $_POST['env'] ?? '', $extraFiles);
       echo json_encode(['ok' => true]);
       break;
 
