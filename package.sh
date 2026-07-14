@@ -26,6 +26,7 @@ trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/usr/local/emhttp/plugins"
 cp -r source/stacksUI "$STAGE/usr/local/emhttp/plugins/stacksUI"
+find "$STAGE/usr/local/emhttp/plugins/stacksUI" -name '.DS_Store' -delete
 chmod +x "$STAGE/usr/local/emhttp/plugins/stacksUI/scripts/"*.sh
 chmod +x "$STAGE/usr/local/emhttp/plugins/stacksUI/event/docker_started/"*
 
