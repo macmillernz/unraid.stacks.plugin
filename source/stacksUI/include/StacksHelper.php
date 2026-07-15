@@ -539,13 +539,58 @@ function stacksUI_appstore_raw_url($slug, $file) {
     '/' . STACKSUI_APPSTORE_BRANCH . '/' . rawurlencode($slug) . '/' . $file;
 }
 
+// Fetches many URLs concurrently via curl_multi instead of one at a time -
+// the catalog grew to 180+ apps, and stacksUI_appstore_list() needs one
+// request per app for its meta.json; doing that sequentially with
+// stacksUI_http_get() meant page load time scaled linearly with catalog
+// size (100+ seconds at this point). Returns $key => body, with body
+// null for anything that failed or returned a non-2xx status - callers
+// treat a missing entry as "skip this one" rather than fatal for the
+// whole batch, same as the old per-request try/catch did.
+function stacksUI_http_get_multi($urls) {
+  $mh = curl_multi_init();
+  $handles = [];
+  foreach ($urls as $key => $url) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_FOLLOWLOCATION => true,
+      CURLOPT_TIMEOUT => 10,
+      CURLOPT_USERAGENT => 'stacksUI-plugin',
+      CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'],
+    ]);
+    curl_multi_add_handle($mh, $ch);
+    $handles[$key] = $ch;
+  }
+
+  $running = null;
+  do {
+    $status = curl_multi_exec($mh, $running);
+    if ($running > 0) {
+      curl_multi_select($mh);
+    }
+  } while ($running > 0 && $status === CURLM_OK);
+
+  $results = [];
+  foreach ($handles as $key => $ch) {
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $body = curl_multi_getcontent($ch);
+    $results[$key] = ($body !== false && $body !== '' && $code >= 200 && $code < 400) ? $body : null;
+    curl_multi_remove_handle($mh, $ch);
+    curl_close($ch);
+  }
+  curl_multi_close($mh);
+  return $results;
+}
+
 // Lists every app in the catalog: one GitHub API call to list the repo's
 // top-level directories, then one raw fetch per directory for its
-// meta.json (compose/env are only fetched on demand, at install time -
-// see stacksUI_appstore_get()). Apps already installed (matched by
-// meta.json's shortname against the real stack list) are left out
-// entirely rather than shown as "installed", per how this plugin's
-// catalog is meant to be used - it's not a status dashboard.
+// meta.json - all of those meta.json fetches happen concurrently via
+// stacksUI_http_get_multi() (compose/env are only fetched on demand, at
+// install time - see stacksUI_appstore_get()). Apps already installed
+// (matched by meta.json's shortname against the real stack list) are
+// left out entirely rather than shown as "installed", per how this
+// plugin's catalog is meant to be used - it's not a status dashboard.
 function stacksUI_appstore_list() {
   $apiUrl = 'https://api.github.com/repos/' . STACKSUI_APPSTORE_OWNER . '/' . STACKSUI_APPSTORE_REPO . '/contents/';
   $entries = json_decode(stacksUI_http_get($apiUrl), true);
@@ -553,17 +598,26 @@ function stacksUI_appstore_list() {
     throw new StacksUIException('Unexpected response from the app store catalog.');
   }
 
-  $installed = array_flip(stacksUI_list_names());
-  $apps = [];
+  $slugs = [];
   foreach ($entries as $entry) {
     if (($entry['type'] ?? '') !== 'dir') continue;
     $slug = $entry['name'];
     if (!preg_match(STACKSUI_NAME_RE, $slug)) continue;
-    try {
-      $meta = json_decode(stacksUI_http_get(stacksUI_appstore_raw_url($slug, 'meta.json')), true);
-    } catch (Exception $e) {
-      continue; // this app's meta.json is missing/unreachable - skip it, not fatal for the rest
-    }
+    $slugs[] = $slug;
+  }
+
+  $urls = [];
+  foreach ($slugs as $slug) {
+    $urls[$slug] = stacksUI_appstore_raw_url($slug, 'meta.json');
+  }
+  $bodies = stacksUI_http_get_multi($urls);
+
+  $installed = array_flip(stacksUI_list_names());
+  $apps = [];
+  foreach ($slugs as $slug) {
+    $body = $bodies[$slug] ?? null;
+    if ($body === null) continue; // missing/unreachable - skip it, not fatal for the rest
+    $meta = json_decode($body, true);
     if (!is_array($meta)) continue;
     $shortname = $meta['shortname'] ?? $slug;
     if (isset($installed[$shortname])) continue;

@@ -13,6 +13,12 @@ Markdown="false"
 
 <div id="stacksUI-appstore-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
   <div class="stacksUI-toolbar">
+    <div class="stacksUI-toolbar-left">
+      <input type="search" id="stacksUI-appstore-search" class="stacksUI-input" placeholder="Search apps&hellip;">
+      <select id="stacksUI-appstore-category" class="stacksUI-select">
+        <option value="">All categories</option>
+      </select>
+    </div>
     <div class="stacksUI-toolbar-right">
       <button id="stacksUI-appstore-refresh" class="stacksUI-btn">Refresh</button>
     </div>

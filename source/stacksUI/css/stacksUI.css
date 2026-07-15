@@ -23,8 +23,15 @@
 
 #stacksUI-root { padding: 10px 0; }
 
-.stacksUI-toolbar { margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.stacksUI-toolbar { margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.stacksUI-toolbar-left { display: flex; align-items: center; gap: 8px; flex: 1; }
 .stacksUI-toolbar-right { display: flex; gap: 8px; }
+
+/* Native <input>/<select> already get Unraid's own themed look from
+   default-base.css - these just size/space them for the compact toolbar
+   row instead of the looser settings-page form spacing. */
+.stacksUI-input { margin: 0; max-width: 260px; }
+.stacksUI-select { margin: 0; }
 
 /* Native buttons already come with their own margin (10px 12px 10px 0)
    sized for spaced-out settings-page forms; too loose for our compact

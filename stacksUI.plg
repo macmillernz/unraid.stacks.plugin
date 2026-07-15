@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.14.1">
+<!ENTITY version   "2026.07.15.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "627608fe3eaa43c724ad108d6332644b">
+<!ENTITY MD5       "100788be0bcf44e1b03d2a769f942936">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,18 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.15.1
+- Added a search box and category dropdown to the App Store toolbar
+  (search on the left alongside category, Refresh moved to the far
+  right). Category defaults to no filter ("All categories"); search
+  filters within whatever category is currently selected. Both are
+  client-side over the already-fetched catalog, so filtering is instant.
+- Fixed a real performance problem: the App Store was fetching every
+  app's meta.json one at a time over a blocking HTTP call, so load time
+  scaled linearly with catalog size - with the catalog now at 180+ apps,
+  this had grown to well over a minute. Rewrote the catalog listing to
+  fetch all of those meta.json files concurrently via curl_multi instead
+  of sequentially; behavior (always live, no caching) is unchanged.
 ###2026.07.14.1
 - App Store tab renamed from "SAS" to "Stacks App Store" (both the nav
   label and the in-page heading, which is now removed entirely since the
