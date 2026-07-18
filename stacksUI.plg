@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.19.4">
+<!ENTITY version   "2026.07.19.5">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "d3e24e1dc4a80d76c169fb66edf361ae">
+<!ENTITY MD5       "e83e69c846140daae8ff5a457989024d">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,23 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.19.5
+- Rebuilt the Settings page's layout to match Unraid's own native
+  settings-page look, modeled directly off Community Applications' real
+  ca_settings.page: Unraid's markdown-based settings idiom ("_(Label)_:"
+  as a term, ": &lt;input&gt;" as its value, "&gt; text" as a hint below it,
+  inside a &lt;form markdown="1"&gt;), Yes/No &lt;select&gt; dropdowns instead of
+  checkboxes for the three tab-visibility toggles, matching field
+  spacing/typography. The previous version's raw &lt;div&gt;/&lt;label&gt; markup
+  never picked up any of Unraid's native styling because the page had
+  Markdown="false" set, which suppresses exactly the processing this
+  idiom depends on - removed that flag, since Settings pages (unlike
+  this plugin's Tasks-category tabs) are meant to use it.
+- Fixed a real bug found while rewriting this: the settings page's save
+  action never sent a CSRF token, so every Apply would have been
+  silently rejected by Unraid's global CSRF check. Not yet render-tested
+  live on the box, per not deploying the plugin there directly - please
+  check the layout after installing.
 ###2026.07.19.4
 - Fixed the Settings page for real, diagnosed live against the box's
   actual rendered HTML: Menu="Settings:User Utilities" was the wrong

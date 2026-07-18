@@ -2,6 +2,8 @@
   'use strict';
 
   var ajaxUrl = '/plugins/stacksUI/include/ajax.php';
+  var root = document.getElementById('stacksUI-settings-page-root');
+  var csrfToken = root.getAttribute('data-csrf-token');
   var $dir = $('#stacksUI-settings-dir');
   var $dataRoot = $('#stacksUI-settings-dataroot');
   var $backup = $('#stacksUI-settings-backup');
@@ -17,16 +19,16 @@
   }
 
   function post(action, data) {
-    return $.post(ajaxUrl, $.extend({ action: action }, data), null, 'json');
+    return $.post(ajaxUrl, $.extend({ action: action, csrf_token: csrfToken }, data), null, 'json');
   }
 
   get('settings').done(function (settings) {
     $dir.val(settings.stacksDir);
     $dataRoot.val(settings.dataRoot);
     $backup.val(settings.backupPath);
-    $hideDocker.prop('checked', !!settings.hideDocker);
-    $hideApps.prop('checked', !!settings.hideApps);
-    $enableAppStore.prop('checked', !!settings.enableAppStore);
+    $hideDocker.val(settings.hideDocker ? '1' : '0');
+    $hideApps.val(settings.hideApps ? '1' : '0');
+    $enableAppStore.val(settings.enableAppStore ? '1' : '0');
   }).fail(function (xhr) {
     $error.text((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load current settings.').show();
   });
@@ -50,9 +52,9 @@
       stacksDir: stacksDir,
       dataRoot: dataRoot,
       backupPath: backupPath,
-      hideDocker: $hideDocker.is(':checked') ? '1' : '0',
-      hideApps: $hideApps.is(':checked') ? '1' : '0',
-      enableAppStore: $enableAppStore.is(':checked') ? '1' : '0',
+      hideDocker: $hideDocker.val(),
+      hideApps: $hideApps.val(),
+      enableAppStore: $enableAppStore.val(),
     }).done(function (result) {
       var moved = result.moved || [];
       var backedUp = result.backedUp || {};

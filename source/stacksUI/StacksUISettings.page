@@ -1,61 +1,70 @@
 Menu="Utilities"
 Title="Stacks UI"
 Icon="stacks.png"
-Markdown="false"
 ---
 <?PHP
 // $var, $docroot etc. are already populated by webGui/template.php before
 // this page's body is evaluated - no require needed to read
 // $var['csrf_token'] below (see Stacks.page for the same convention).
+//
+// No Markdown="false" here, on purpose - unlike Tasks-category tab
+// pages elsewhere in this plugin, Settings-category pages are meant to
+// be authored in Unraid's own markdown-based settings idiom (confirmed
+// by reading Community Applications' own ca_settings.page on a real
+// box): "_(Label)_:" as a term, ": <input>" as its definition, and
+// "> hint text" as a blockquote hint below it, all inside a
+// <form markdown="1">. That's what gives every native settings page
+// its consistent label/input/hint layout - raw <div>/<label> soup (the
+// previous version of this page) doesn't get any of that styling.
 ?>
 <link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
 
-<div id="stacksUI-settings-page-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
-  <h1>Stacks UI</h1>
+<form id="stacksUI-settings-page-root" markdown="1" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>" onsubmit="return false;">
 
-  <label>
-    Stacks directory
-    <input type="text" id="stacksUI-settings-dir" placeholder="/boot/config/plugins/stacksUI">
-  </label>
-  <p class="stacksUI-hint">Where each stack's docker-compose.yml/.env/meta.json live. Changing this moves any existing stacks to the new location.</p>
-  <label>
-    Default data root
-    <input type="text" id="stacksUI-settings-dataroot" placeholder="/mnt/user/appdata">
-  </label>
-  <p class="stacksUI-hint">Used to pre-fill a DATA_ROOT suggestion in new stacks' .env - doesn't affect stacks you've already created.</p>
-  <label>
-    Backup path <span class="stacksUI-optional">(optional)</span>
-    <input type="text" id="stacksUI-settings-backup" placeholder="e.g. /mnt/user/backups/stacksUI">
-  </label>
-  <p class="stacksUI-hint">If set, a copy of a stack's docker-compose.yml/.env/meta.json is mirrored here after every create/edit. Leave blank to disable.</p>
+_(Stacks directory)_:
+: <input type="text" id="stacksUI-settings-dir" placeholder="/boot/config/plugins/stacksUI">
 
-  <p class="stacksUI-hint">
-    The three toggles below control which native Unraid tabs are visible. Changes take effect
-    immediately, but a full page reload (not just clicking between tabs) is needed to see a tab
-    appear or disappear from the top nav bar.
-  </p>
+> Where each stack's docker-compose.yml/.env/meta.json live. Changing this moves any existing stacks to the new location.
 
-  <div class="stacksUI-settings-toggle-row">
-    <label for="stacksUI-toggle-hideDocker">Hide Docker tab</label>
-    <input type="checkbox" id="stacksUI-toggle-hideDocker">
-  </div>
-  <p class="stacksUI-hint">Hides the built-in "Docker" tab, since stacks are managed from the Stacks tab instead.</p>
+_(Default data root)_:
+: <input type="text" id="stacksUI-settings-dataroot" placeholder="/mnt/user/appdata">
 
-  <div class="stacksUI-settings-toggle-row">
-    <label for="stacksUI-toggle-hideApps">Hide Apps tab</label>
-    <input type="checkbox" id="stacksUI-toggle-hideApps">
-  </div>
-  <p class="stacksUI-hint">Hides Community Applications' "Apps" tab, since the Stacks App Store covers app installs instead.</p>
+> Used to pre-fill a DATA_ROOT suggestion in new stacks' .env - doesn't affect stacks you've already created.
 
-  <div class="stacksUI-settings-toggle-row">
-    <label for="stacksUI-toggle-enableAppStore">Enable Stacks App Store tab</label>
-    <input type="checkbox" id="stacksUI-toggle-enableAppStore">
-  </div>
-  <p class="stacksUI-hint">Shows or hides stacksUI's own "Stacks App Store" tab.</p>
+_(Backup path)_ (optional):
+: <input type="text" id="stacksUI-settings-backup" placeholder="e.g. /mnt/user/backups/stacksUI">
 
-  <p id="stacksUI-settings-page-error" class="stacksUI-error" style="display:none"></p>
-  <button id="stacksUI-settings-page-save" class="stacksUI-btn">Save</button>
-  <span id="stacksUI-settings-page-saved" class="stacksUI-hint" style="display:none">Saved.</span>
-</div>
+> If set, a copy of a stack's docker-compose.yml/.env/meta.json is mirrored here after every create/edit. Leave blank to disable.
+
+_(Hide Docker tab)_:
+: <select class='narrow' id="stacksUI-toggle-hideDocker">
+  <option value="1">Yes</option>
+  <option value="0">No</option>
+  </select>
+
+> Hides the built-in "Docker" tab, since stacks are managed from the Stacks tab instead.
+
+_(Hide Apps tab)_:
+: <select class='narrow' id="stacksUI-toggle-hideApps">
+  <option value="1">Yes</option>
+  <option value="0">No</option>
+  </select>
+
+> Hides Community Applications' "Apps" tab, since the Stacks App Store covers app installs instead.
+
+_(Enable Stacks App Store tab)_:
+: <select class='narrow' id="stacksUI-toggle-enableAppStore">
+  <option value="1">Yes</option>
+  <option value="0">No</option>
+  </select>
+
+> Shows or hides stacksUI's own "Stacks App Store" tab. These three toggles take effect immediately, but a full page reload (not just clicking between tabs) is needed to see a tab appear or disappear from the top nav bar.
+
+<p id="stacksUI-settings-page-error" class="stacksUI-error" style="display:none"></p>
+
+&nbsp;
+: <span><input type="button" id="stacksUI-settings-page-save" value="Apply"> <span id="stacksUI-settings-page-saved" style="display:none">Saved.</span></span>
+
+</form>
 
 <script src="/plugins/stacksUI/js/stacksUISettings.js"></script>
