@@ -54,11 +54,21 @@ try {
       break;
 
     case 'save_settings':
-      echo json_encode(stacksUI_save_settings([
-        'stacksDir' => trim($_POST['stacksDir'] ?? ''),
-        'dataRoot' => trim($_POST['dataRoot'] ?? ''),
-        'backupPath' => trim($_POST['backupPath'] ?? ''),
-      ]));
+      // Built from only the keys actually submitted (not a fixed list of
+      // fields defaulted to '') so this one action can serve both the
+      // Stacks-tab settings modal (stacksDir/dataRoot/backupPath) and the
+      // Settings-page visibility toggles (hideDocker/hideApps/
+      // enableAppStore) without either caller clobbering the other's
+      // fields back to blank/false - stacksUI_save_settings() falls back
+      // to the current value for anything not present here.
+      $payload = [];
+      foreach (['stacksDir', 'dataRoot', 'backupPath'] as $key) {
+        if (isset($_POST[$key])) $payload[$key] = trim($_POST[$key]);
+      }
+      foreach (['hideDocker', 'hideApps', 'enableAppStore'] as $key) {
+        if (isset($_POST[$key])) $payload[$key] = $_POST[$key] === '1';
+      }
+      echo json_encode(stacksUI_save_settings($payload));
       break;
 
     case 'get':

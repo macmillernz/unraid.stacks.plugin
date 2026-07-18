@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.15.1">
+<!ENTITY version   "2026.07.19.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "100788be0bcf44e1b03d2a769f942936">
+<!ENTITY MD5       "8bcc734e3fc679d40d564ac24263c256">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,19 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.19.1
+- Added a "Stacks UI" entry under Settings with three toggles: Hide Docker
+  tab, Hide Apps tab (Community Applications), and Enable Stacks App
+  Store tab - all enabled by default, matching this plugin's existing
+  behavior so upgrading changes nothing until you opt out. Toggling
+  applies immediately (no reboot needed, though a full page reload is
+  needed to see a tab appear/disappear from the nav bar) and is
+  re-applied automatically on every boot, the same way the Docker-tab
+  hiding already worked. The "Hide Apps" mechanism and the new Settings
+  page's own Menu="Settings:ThirdParty" placement are unverified against
+  a real box this release (no box access during this dev cycle) - please
+  check both after installing and report back if either doesn't work as
+  expected.
 ###2026.07.15.1
 - Added a search box and category dropdown to the App Store toolbar
   (search on the left alongside category, Refresh moved to the far
@@ -170,25 +183,25 @@ chmod +x "&emhttp;/scripts/"*.sh
 chmod +x "&emhttp;/vendor/docker-compose"
 chmod +x "&emhttp;/event/docker_started/"*
 
-# dynamix.docker.manager's page file, and /usr/local/lib's Docker CLI
-# plugins, are both rebuilt from the base OS packages on every boot - so
-# hiding the Docker tab and keeping docker-compose installed both need to
-# be re-applied at every boot, not just once here. /boot/config/go is the
-# standard flash-persisted boot script other plugins use for exactly
-# this. Guarded with a marker so re-running the installer (upgrades)
-# doesn't duplicate it.
+# dynamix.docker.manager's page file, Community Applications' Apps page,
+# our own AppStore.page, and /usr/local/lib's Docker CLI plugins are all
+# rebuilt from the base OS/plugin packages on every boot - so every tab-
+# visibility toggle and docker-compose itself need to be re-applied at
+# every boot, not just once here. /boot/config/go is the standard flash-
+# persisted boot script other plugins use for exactly this. Guarded with
+# a marker so re-running the installer (upgrades) doesn't duplicate it.
 GO_FILE="/boot/config/go"
 MARKER="# --- stacksUI boot-hooks: begin ---"
 if ! grep -qF "$MARKER" "$GO_FILE" 2&gt;/dev/null; then
   {
     echo "$MARKER"
-    echo "&emhttp;/scripts/patch_docker_menu.sh &gt;/var/log/stacksUI-patch.log 2&gt;&amp;1 &amp;"
+    echo "&emhttp;/scripts/apply_visibility_settings.sh &gt;/var/log/stacksUI-visibility.log 2&gt;&amp;1 &amp;"
     echo "&emhttp;/scripts/install_compose_cli.sh &gt;/var/log/stacksUI-compose-cli.log 2&gt;&amp;1 &amp;"
     echo "# --- stacksUI boot-hooks: end ---"
   } &gt;&gt; "$GO_FILE"
 fi
 
-"&emhttp;/scripts/patch_docker_menu.sh" || true
+"&emhttp;/scripts/apply_visibility_settings.sh" || true
 "&emhttp;/scripts/install_compose_cli.sh" || true
 
 echo "Stacks UI installed. Visit the Stacks tab to get started."
@@ -202,6 +215,7 @@ echo "Stacks UI installed. Visit the Stacks tab to get started."
   <FILE Run="/bin/bash" Method="remove">
     <INLINE>
 "&emhttp;/scripts/restore_docker_menu.sh" || true
+"&emhttp;/scripts/restore_apps_menu.sh" || true
 
 GO_FILE="/boot/config/go"
 if [ -f "$GO_FILE" ]; then

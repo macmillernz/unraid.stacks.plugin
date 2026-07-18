@@ -1,0 +1,52 @@
+Menu="Settings:ThirdParty"
+Title="Stacks UI"
+Icon="stacks.png"
+Markdown="false"
+---
+<?PHP
+// $var, $docroot etc. are already populated by webGui/template.php before
+// this page's body is evaluated - no require needed to read
+// $var['csrf_token'] below (see Stacks.page for the same convention).
+//
+// UNVERIFIED on a real box: Menu="Settings:ThirdParty" is the standard
+// extension point most third-party Unraid plugins use to add their own
+// entry to the Settings page's "third-party" section, but (unlike the
+// Tasks: tab convention elsewhere in this plugin, which was confirmed
+// live) this hasn't been checked against an actual Unraid installation
+// this session. Re-check after installing and report back if this page
+// doesn't show up under Settings as expected.
+?>
+<link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
+
+<div id="stacksUI-settings-page-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
+  <h1>Stacks UI</h1>
+  <p class="stacksUI-hint">
+    Controls which native Unraid tabs are visible. Changes take effect immediately, but a full
+    page reload (not just clicking between tabs) is needed to see a tab appear or disappear from
+    the top nav bar.
+  </p>
+
+  <div class="stacksUI-settings-toggle-row">
+    <label for="stacksUI-toggle-hideDocker">Hide Docker tab</label>
+    <input type="checkbox" id="stacksUI-toggle-hideDocker">
+  </div>
+  <p class="stacksUI-hint">Hides the built-in "Docker" tab, since stacks are managed from the Stacks tab instead.</p>
+
+  <div class="stacksUI-settings-toggle-row">
+    <label for="stacksUI-toggle-hideApps">Hide Apps tab</label>
+    <input type="checkbox" id="stacksUI-toggle-hideApps">
+  </div>
+  <p class="stacksUI-hint">Hides Community Applications' "Apps" tab, since the Stacks App Store covers app installs instead.</p>
+
+  <div class="stacksUI-settings-toggle-row">
+    <label for="stacksUI-toggle-enableAppStore">Enable Stacks App Store tab</label>
+    <input type="checkbox" id="stacksUI-toggle-enableAppStore">
+  </div>
+  <p class="stacksUI-hint">Shows or hides stacksUI's own "Stacks App Store" tab.</p>
+
+  <p id="stacksUI-settings-page-error" class="stacksUI-error" style="display:none"></p>
+  <button id="stacksUI-settings-page-save" class="stacksUI-btn">Save</button>
+  <span id="stacksUI-settings-page-saved" class="stacksUI-hint" style="display:none">Saved.</span>
+</div>
+
+<script src="/plugins/stacksUI/js/stacksUISettings.js"></script>

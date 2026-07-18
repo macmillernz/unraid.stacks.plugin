@@ -48,8 +48,22 @@ function stacksUI_validate_name($name) {
 // never touches saved stacks, just a starting suggestion. backupPath, if
 // set, gets a mirrored copy of a stack's files after every create/update
 // (see stacksUI_backup_stack()) - empty string means backups are off.
+// hideDocker/hideApps/enableAppStore control which native Unraid tabs are
+// visible (Docker, Community Applications' Apps tab, and stacksUI's own
+// App Store tab respectively) - see stacksUI_apply_visibility_settings()
+// for how these are actually enforced. All three default to true (hide
+// Docker, hide Apps, keep our own App Store tab shown), matching this
+// plugin's existing pre-Settings-page behavior so upgrading doesn't
+// change anything for existing installs until a user opts out.
 function stacksUI_settings() {
-  $defaults = ['stacksDir' => STACKSUI_DEFAULT_DIR, 'dataRoot' => '/mnt/user/appdata', 'backupPath' => ''];
+  $defaults = [
+    'stacksDir' => STACKSUI_DEFAULT_DIR,
+    'dataRoot' => '/mnt/user/appdata',
+    'backupPath' => '',
+    'hideDocker' => true,
+    'hideApps' => true,
+    'enableAppStore' => true,
+  ];
   if (!file_exists(STACKSUI_SETTINGS_FILE)) return $defaults;
   $decoded = json_decode(file_get_contents(STACKSUI_SETTINGS_FILE), true);
   return is_array($decoded) ? array_merge($defaults, $decoded) : $defaults;
@@ -124,8 +138,19 @@ function stacksUI_save_settings($newSettings) {
       throw new StacksUIException('Backup path must be different from the stacks directory');
     }
   }
+  $hideDocker = (bool)($newSettings['hideDocker'] ?? $current['hideDocker']);
+  $hideApps = (bool)($newSettings['hideApps'] ?? $current['hideApps']);
+  $enableAppStore = (bool)($newSettings['enableAppStore'] ?? $current['enableAppStore']);
+
   $moved = stacksUI_move_stacks($current['stacksDir'], $stacksDir);
-  $settings = ['stacksDir' => $stacksDir, 'dataRoot' => $dataRoot, 'backupPath' => $backupPath];
+  $settings = [
+    'stacksDir' => $stacksDir,
+    'dataRoot' => $dataRoot,
+    'backupPath' => $backupPath,
+    'hideDocker' => $hideDocker,
+    'hideApps' => $hideApps,
+    'enableAppStore' => $enableAppStore,
+  ];
   if (!is_dir(dirname(STACKSUI_SETTINGS_FILE))) {
     mkdir(dirname(STACKSUI_SETTINGS_FILE), 0755, true);
   }
@@ -135,7 +160,24 @@ function stacksUI_save_settings($newSettings) {
   // right away rather than waiting for the next create/edit of each stack.
   $backedUp = $backupPath !== '' ? stacksUI_backup_all() : [];
 
+  // Applies the (possibly just-changed) tab-visibility flags immediately,
+  // rather than waiting for the next reboot's go-file hook - see
+  // scripts/apply_visibility_settings.sh.
+  stacksUI_apply_visibility_settings();
+
   return ['settings' => $settings, 'moved' => $moved, 'backedUp' => $backedUp];
+}
+
+// Shells out to the script that actually patches/restores the Docker tab,
+// the Community Applications "Apps" tab, and stacksUI's own App Store
+// tab, based on whatever stacksUI_settings() currently returns. Best-
+// effort: a failure here shouldn't block saving the settings themselves
+// (mirrors the "|| true" pattern already used for these same scripts at
+// plugin install time in stacksUI.plg).
+function stacksUI_apply_visibility_settings() {
+  $script = '/usr/local/emhttp/plugins/stacksUI/scripts/apply_visibility_settings.sh';
+  if (!is_file($script)) return;
+  shell_exec(escapeshellarg($script) . ' 2>&1');
 }
 
 // Mirrors one stack's directory (docker-compose.yml/.env/meta.json) into

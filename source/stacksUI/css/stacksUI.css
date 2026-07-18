@@ -139,6 +139,11 @@
 .stacksUI-modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .stacksUI-spacer { flex: 1 1 auto; }
 .stacksUI-error { color: var(--red-800); }
+.stacksUI-settings-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 420px; padding: 8px 0; gap: 12px;
+}
+.stacksUI-settings-toggle-row label { font-size: 13px; }
 .stacksUI-validation { margin-top: 10px; padding: 8px 10px; border-radius: 4px; font-size: 12px; white-space: pre-wrap; text-align: left; }
 .stacksUI-validation-ok { background: var(--green-100); color: var(--green-900); border: 1px solid var(--green-500); }
 .stacksUI-validation-fail { background: var(--red-100); color: var(--red-900); border: 1px solid var(--red-500); }
