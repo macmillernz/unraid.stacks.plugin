@@ -9,7 +9,7 @@ Markdown="false"
 // this page's body is evaluated - no require needed to read
 // $var['csrf_token'] below (see Stacks.page for the same convention).
 ?>
-<link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
+<link type="text/css" rel="stylesheet" href="<?autov('/plugins/stacksUI/css/stacksUI.css')?>">
 
 <div id="stacksUI-appstore-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
   <div class="stacksUI-toolbar">
@@ -30,5 +30,5 @@ Markdown="false"
 
 <?php include "$docroot/plugins/stacksUI/include/stack_modal.php"; ?>
 
-<script src="/plugins/stacksUI/js/stackModal.js"></script>
-<script src="/plugins/stacksUI/js/appStore.js"></script>
+<script src="<?autov('/plugins/stacksUI/js/stackModal.js')?>"></script>
+<script src="<?autov('/plugins/stacksUI/js/appStore.js')?>"></script>

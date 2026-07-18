@@ -17,7 +17,7 @@ Icon="stacks.png"
 // its consistent label/input/hint layout - raw <div>/<label> soup (the
 // previous version of this page) doesn't get any of that styling.
 ?>
-<link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
+<link type="text/css" rel="stylesheet" href="<?autov('/plugins/stacksUI/css/stacksUI.css')?>">
 
 <form id="stacksUI-settings-page-root" markdown="1" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>" onsubmit="return false;">
 
@@ -67,4 +67,4 @@ _(Enable Stacks App Store tab)_:
 
 </form>
 
-<script src="/plugins/stacksUI/js/stacksUISettings.js"></script>
+<script src="<?autov('/plugins/stacksUI/js/stacksUISettings.js')?>"></script>

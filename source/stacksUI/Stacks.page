@@ -9,7 +9,7 @@ Code="f24d"
 // DefaultPageLayout.php) - no require needed to read $var['csrf_token'] below.
 ?>
 <link type="text/css" rel="stylesheet" href="<?autov('/webGui/styles/jquery.switchbutton.css')?>">
-<link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
+<link type="text/css" rel="stylesheet" href="<?autov('/plugins/stacksUI/css/stacksUI.css')?>">
 <script src="<?autov('/webGui/javascript/jquery.switchbutton.js')?>"></script>
 
 <div id="stacksUI-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
@@ -40,5 +40,5 @@ Code="f24d"
   </div>
 </div>
 
-<script src="/plugins/stacksUI/js/stackModal.js"></script>
-<script src="/plugins/stacksUI/js/stacksUI.js"></script>
+<script src="<?autov('/plugins/stacksUI/js/stackModal.js')?>"></script>
+<script src="<?autov('/plugins/stacksUI/js/stacksUI.js')?>"></script>

@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.19.5">
+<!ENTITY version   "2026.07.19.6">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "e83e69c846140daae8ff5a457989024d">
+<!ENTITY MD5       "40668dce45a07b8bc37f5f0c83178b82">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,20 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.19.6
+- Fixed the Settings button on the Stacks page appearing to do nothing.
+  Root cause, confirmed against the box: nginx serves this plugin's own
+  JS/CSS with Last-Modified/ETag but no Cache-Control/Expires header at
+  all, and every page referenced them with a plain, unversioned URL - so
+  after any plugin update, a browser could keep serving an old cached
+  copy of stacksUI.js (from before the Settings-page redirect existed)
+  indefinitely, with no way to tell it's stale. Every one of this
+  plugin's own JS/CSS includes, across every page, now goes through
+  Unraid's own autov() cache-busting helper (already used for stock
+  assets like jquery.switchbutton.js elsewhere in this same plugin) -
+  its version query string changes whenever the underlying file's mtime
+  changes, forcing a fresh fetch after every update instead of relying
+  on the browser's own guess.
 ###2026.07.19.5
 - Rebuilt the Settings page's layout to match Unraid's own native
   settings-page look, modeled directly off Community Applications' real
