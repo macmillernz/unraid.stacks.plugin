@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.19.3">
+<!ENTITY version   "2026.07.19.4">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "6294e14013dc0e7ac5ee8db02117d346">
+<!ENTITY MD5       "d3e24e1dc4a80d76c169fb66edf361ae">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,22 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.19.4
+- Fixed the Settings page for real, diagnosed live against the box's
+  actual rendered HTML: Menu="Settings:User Utilities" was the wrong
+  header format entirely - that "Settings:" prefix is what Unraid's core
+  pages use to compose the master Settings page itself, not the
+  convention third-party plugins use. Confirmed the correct format by
+  reading Community Applications' own ca_settings.page, which just uses
+  Menu="Utilities" (bare, no prefix). The wrong format caused two bugs:
+  our page rendered twice - once correctly as an icon tile under User
+  Utilities (that part already worked), and a second time as a whole
+  extra unstyled pseudo-category with our raw form dumped directly into
+  the master Settings page. Fixed by switching to Menu="Utilities".
+- Fixed the Settings button's redirect: Settings-category pages resolve
+  at /Settings/&lt;PageName&gt;, not a bare /&lt;PageName&gt; like Tasks-category
+  tabs (/Stacks, /AppStore) - confirmed against the box's own generated
+  links. The Settings button was pointing at the wrong URL.
 ###2026.07.19.3
 - Fixed Hide Apps for real, confirmed against a real box's actual page
   headers: the previous discovery script guessed the header would

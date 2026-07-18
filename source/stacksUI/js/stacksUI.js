@@ -242,11 +242,11 @@
 
   // Settings now live on their own native Settings page (see
   // StacksUISettings.page) rather than an in-page modal - this button
-  // just sends you there. Same underlying page-dispatch mechanism as
-  // navigating to /Stacks or /AppStore, just under Settings instead of
-  // Tasks: Menu= only affects nav placement/grouping, not the URL.
+  // just sends you there. Confirmed live: Settings-category pages
+  // resolve at /Settings/<PageName> (unlike Tasks-category pages like
+  // /Stacks or /AppStore, which have no prefix).
   $('#stacksUI-settings').on('click', function () {
-    window.location.href = '/StacksUISettings';
+    window.location.href = '/Settings/StacksUISettings';
   });
 
   loadSettings();
