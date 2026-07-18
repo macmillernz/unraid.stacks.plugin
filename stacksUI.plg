@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.19.2">
+<!ENTITY version   "2026.07.19.3">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "78837341c27e1541cf640fa0598840cd">
+<!ENTITY MD5       "6294e14013dc0e7ac5ee8db02117d346">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,15 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.19.3
+- Fixed Hide Apps for real, confirmed against a real box's actual page
+  headers: the previous discovery script guessed the header would
+  contain Title="Apps", but the real field is Name=, so it silently
+  matched nothing and did nothing. There are also two files that both
+  declare Menu="Tasks:80" - a stock stub at dynamix/Apps.page and
+  Community Applications' own community.applications/Apps.page - both
+  are now patched directly by that known Menu= value, the same reliable
+  technique already used for the Docker tab.
 ###2026.07.19.2
 - Settings page now correctly registers under Settings > User Utilities
   (was the wrong category name, "ThirdParty", which doesn't exist as a
