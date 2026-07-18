@@ -9,11 +9,6 @@
   var $logsModal = $('#stacksUI-logs-modal');
   var $logsTitle = $('#stacksUI-logs-title');
   var $logsContent = $('#stacksUI-logs-content');
-  var $settingsModal = $('#stacksUI-settings-modal');
-  var $settingsDir = $('#stacksUI-settings-dir');
-  var $settingsDataRoot = $('#stacksUI-settings-dataroot');
-  var $settingsBackup = $('#stacksUI-settings-backup');
-  var $settingsError = $('#stacksUI-settings-error');
 
   var logsStackName = null;
   var settings = { stacksDir: '', dataRoot: '/mnt/user/appdata' };
@@ -245,54 +240,13 @@
     });
   }
 
+  // Settings now live on their own native Settings page (see
+  // StacksUISettings.page) rather than an in-page modal - this button
+  // just sends you there. Same underlying page-dispatch mechanism as
+  // navigating to /Stacks or /AppStore, just under Settings instead of
+  // Tasks: Menu= only affects nav placement/grouping, not the URL.
   $('#stacksUI-settings').on('click', function () {
-    $settingsError.hide().text('');
-    $settingsDir.val(settings.stacksDir);
-    $settingsDataRoot.val(settings.dataRoot);
-    $settingsBackup.val(settings.backupPath);
-    $settingsModal.show();
-  });
-
-  $('#stacksUI-settings-cancel').on('click', function () { $settingsModal.hide(); });
-
-  $('#stacksUI-settings-save').on('click', function () {
-    var $btn = $(this);
-    var stacksDir = $settingsDir.val().trim();
-    var dataRoot = $settingsDataRoot.val().trim();
-    var backupPath = $settingsBackup.val().trim();
-    if (!stacksDir || stacksDir[0] !== '/' || !dataRoot || dataRoot[0] !== '/') {
-      $settingsError.text('Stacks directory and default data root must be absolute (start with "/").').show();
-      return;
-    }
-    if (backupPath && backupPath[0] !== '/') {
-      $settingsError.text('Backup path must be absolute (start with "/"), or left blank to disable.').show();
-      return;
-    }
-    $settingsError.hide().text('');
-    $btn.prop('disabled', true).text('Saving…');
-    post('save_settings', { stacksDir: stacksDir, dataRoot: dataRoot, backupPath: backupPath }).done(function (result) {
-      settings = result.settings;
-      StacksUIModal.setDataRoot(settings.dataRoot);
-      $settingsModal.hide();
-      loadList();
-
-      var moved = result.moved || [];
-      var backedUp = result.backedUp || {};
-      var failedBackups = Object.keys(backedUp).filter(function (name) { return backedUp[name] !== true; });
-      var notes = [];
-      if (moved.length) notes.push('Moved to new stacks directory: ' + moved.join(', ') + '.');
-      if (failedBackups.length) {
-        notes.push('Backup failed for: ' + failedBackups.map(function (name) {
-          return name + ' (' + backedUp[name] + ')';
-        }).join(', '));
-      }
-      if (notes.length) alert(notes.join('\n\n'));
-    }).fail(function (xhr) {
-      var body = xhr.responseJSON || {};
-      $settingsError.text(body.error || 'Failed to save settings.').show();
-    }).always(function () {
-      $btn.prop('disabled', false).text('Save');
-    });
+    window.location.href = '/StacksUISettings';
   });
 
   loadSettings();

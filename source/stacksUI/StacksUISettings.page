@@ -1,4 +1,4 @@
-Menu="Settings:ThirdParty"
+Menu="Settings:User Utilities"
 Title="Stacks UI"
 Icon="stacks.png"
 Markdown="false"
@@ -7,23 +7,32 @@ Markdown="false"
 // $var, $docroot etc. are already populated by webGui/template.php before
 // this page's body is evaluated - no require needed to read
 // $var['csrf_token'] below (see Stacks.page for the same convention).
-//
-// UNVERIFIED on a real box: Menu="Settings:ThirdParty" is the standard
-// extension point most third-party Unraid plugins use to add their own
-// entry to the Settings page's "third-party" section, but (unlike the
-// Tasks: tab convention elsewhere in this plugin, which was confirmed
-// live) this hasn't been checked against an actual Unraid installation
-// this session. Re-check after installing and report back if this page
-// doesn't show up under Settings as expected.
 ?>
 <link type="text/css" rel="stylesheet" href="/plugins/stacksUI/css/stacksUI.css">
 
 <div id="stacksUI-settings-page-root" data-csrf-token="<?= htmlspecialchars($var['csrf_token'] ?? '') ?>">
   <h1>Stacks UI</h1>
+
+  <label>
+    Stacks directory
+    <input type="text" id="stacksUI-settings-dir" placeholder="/boot/config/plugins/stacksUI">
+  </label>
+  <p class="stacksUI-hint">Where each stack's docker-compose.yml/.env/meta.json live. Changing this moves any existing stacks to the new location.</p>
+  <label>
+    Default data root
+    <input type="text" id="stacksUI-settings-dataroot" placeholder="/mnt/user/appdata">
+  </label>
+  <p class="stacksUI-hint">Used to pre-fill a DATA_ROOT suggestion in new stacks' .env - doesn't affect stacks you've already created.</p>
+  <label>
+    Backup path <span class="stacksUI-optional">(optional)</span>
+    <input type="text" id="stacksUI-settings-backup" placeholder="e.g. /mnt/user/backups/stacksUI">
+  </label>
+  <p class="stacksUI-hint">If set, a copy of a stack's docker-compose.yml/.env/meta.json is mirrored here after every create/edit. Leave blank to disable.</p>
+
   <p class="stacksUI-hint">
-    Controls which native Unraid tabs are visible. Changes take effect immediately, but a full
-    page reload (not just clicking between tabs) is needed to see a tab appear or disappear from
-    the top nav bar.
+    The three toggles below control which native Unraid tabs are visible. Changes take effect
+    immediately, but a full page reload (not just clicking between tabs) is needed to see a tab
+    appear or disappear from the top nav bar.
   </p>
 
   <div class="stacksUI-settings-toggle-row">

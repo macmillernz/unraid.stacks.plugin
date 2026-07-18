@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.19.1">
+<!ENTITY version   "2026.07.19.2">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "8bcc734e3fc679d40d564ac24263c256">
+<!ENTITY MD5       "78837341c27e1541cf640fa0598840cd">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,19 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.19.2
+- Settings page now correctly registers under Settings > User Utilities
+  (was the wrong category name, "ThirdParty", which doesn't exist as a
+  real Unraid Settings section).
+- Moved the Stacks page's old in-page Settings modal (stacks directory,
+  default data root, backup path) into the new Settings page instead -
+  the Settings button on the Stacks page now navigates there rather than
+  opening a modal. One consolidated settings location instead of two.
+- Hide Apps tab still needs a real fix - the previous release's file-
+  discovery guess for Community Applications' tab page didn't work.
+  Pending confirmation of the actual file/header on a real box before
+  this can be fixed properly (this release does not change that
+  mechanism yet).
 ###2026.07.19.1
 - Added a "Stacks UI" entry under Settings with three toggles: Hide Docker
   tab, Hide Apps tab (Community Applications), and Enable Stacks App
