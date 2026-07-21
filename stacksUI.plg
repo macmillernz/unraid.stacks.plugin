@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.19.6">
+<!ENTITY version   "2026.07.20.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "40668dce45a07b8bc37f5f0c83178b82">
+<!ENTITY MD5       "44371e3687b3fc5ea18f5d0472c4e115">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,17 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.20.1
+- Added an output popup for Start/Stop/Restart on the Stacks page: instead
+  of just a spinner and silence, clicking Start/Stop/Restart on a stack
+  now shows the actual `docker compose up/down/restart` output (stdout
+  and stderr, since compose writes most of its real progress to stderr)
+  in a modal afterward, whether it succeeded or failed - meant to help
+  troubleshoot a stack that isn't starting/stopping cleanly instead of
+  only surfacing an error on failure. "Start All"/"Stop All" still run
+  the same commands per stack but skip the per-card popup (would be one
+  popup per stack, unusable for more than a couple), keeping their
+  existing failure-only alert.
 ###2026.07.19.6
 - Fixed the Settings button on the Stacks page appearing to do nothing.
   Root cause, confirmed against the box: nginx serves this plugin's own

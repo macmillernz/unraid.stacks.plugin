@@ -116,18 +116,15 @@ try {
       break;
 
     case 'up':
-      stacksUI_compose_up($_POST['name'] ?? '');
-      echo json_encode(['ok' => true]);
+      echo json_encode(stacksUI_compose_up($_POST['name'] ?? ''));
       break;
 
     case 'down':
-      stacksUI_compose_down($_POST['name'] ?? '');
-      echo json_encode(['ok' => true]);
+      echo json_encode(stacksUI_compose_down($_POST['name'] ?? ''));
       break;
 
     case 'restart':
-      stacksUI_compose_restart($_POST['name'] ?? '');
-      echo json_encode(['ok' => true]);
+      echo json_encode(stacksUI_compose_restart($_POST['name'] ?? ''));
       break;
 
     case 'pull':

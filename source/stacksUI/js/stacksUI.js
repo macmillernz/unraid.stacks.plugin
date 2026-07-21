@@ -9,6 +9,10 @@
   var $logsModal = $('#stacksUI-logs-modal');
   var $logsTitle = $('#stacksUI-logs-title');
   var $logsContent = $('#stacksUI-logs-content');
+  var $actionOutputModal = $('#stacksUI-action-output-modal');
+  var $actionOutputTitle = $('#stacksUI-action-output-title');
+  var $actionOutputStatus = $('#stacksUI-action-output-status');
+  var $actionOutputContent = $('#stacksUI-action-output-content');
 
   var logsStackName = null;
   var settings = { stacksDir: '', dataRoot: '/mnt/user/appdata' };
@@ -142,18 +146,42 @@
     post('autostart', { name: name, value: checked ? '1' : '0' });
   });
 
+  var actionLabels = { up: 'Start', down: 'Stop', restart: 'Restart' };
+
+  // Shows the actual `docker compose up/down/restart` output (stdout+
+  // stderr combined, since compose writes most of its real progress -
+  // "Container X Starting/Started" - to stderr, not stdout) so a failed
+  // or unexpectedly-behaving start/stop/restart can actually be
+  // troubleshot instead of just seeing a spinner then silence.
+  function showActionOutput(action, name, result) {
+    var label = actionLabels[action] || action;
+    $actionOutputTitle.text(label + ': ' + name);
+    if (result.ok) {
+      $actionOutputStatus.attr('class', 'stacksUI-validation stacksUI-validation-ok').text('Succeeded');
+    } else {
+      $actionOutputStatus.attr('class', 'stacksUI-validation stacksUI-validation-fail').text('Failed (exit code ' + result.exitCode + ')');
+    }
+    var text = ((result.stdout || '') + (result.stderr || '')).trim();
+    $actionOutputContent.text(text || '(no output)');
+    $actionOutputModal.show();
+  }
+
   // Runs a start/stop/restart action against one stack's card: swaps its
-  // button for a spinner (rather than a popup) while in flight, disables
-  // the other card actions so they can't be clicked mid-operation, and
-  // reloads the list once done (skippable so callers like "Start All"
-  // can batch many of these and reload just once at the end).
+  // button for a spinner while in flight, disables the other card
+  // actions so they can't be clicked mid-operation, reloads the list
+  // once done (skippable so callers like "Start All" can batch many of
+  // these and reload just once at the end), and shows the command's
+  // output in a popup (skippable too - "Start All"/"Stop All" run this
+  // once per stack, and popping up a modal for each would be unusable).
   function runStackAction(action, $card, opts) {
     opts = opts || {};
     var name = $card.data('name');
     var $btn = action === 'restart' ? $card.find('.stacksUI-action-restart') : $card.find('.stacksUI-action-toggle');
     $card.find('.stacksUI-card-actions button').prop('disabled', true);
     $btn.html('<span class="stacksUI-spinner-sm"></span>');
-    return post(action, { name: name }).fail(function (xhr) {
+    return post(action, { name: name }).done(function (result) {
+      if (opts.showOutput !== false) showActionOutput(action, name, result);
+    }).fail(function (xhr) {
       var body = (xhr && xhr.responseJSON) || {};
       var msg = body.error || ('Failed to run "' + action + '" on ' + name + '.');
       alert(msg + (body.stderr ? '\n\n' + body.stderr : ''));
@@ -165,7 +193,7 @@
   function runAllAction(action) {
     var promises = [];
     $list.find('.stacksUI-card').each(function () {
-      promises.push(runStackAction(action, $(this), { skipReload: true }));
+      promises.push(runStackAction(action, $(this), { skipReload: true, showOutput: false }));
     });
     if (!promises.length) return;
     $.when.apply($, promises).always(loadList);
@@ -232,6 +260,7 @@
 
   $('#stacksUI-logs-refresh').on('click', refreshLogs);
   $('#stacksUI-logs-close').on('click', function () { $logsModal.hide(); });
+  $('#stacksUI-action-output-close').on('click', function () { $actionOutputModal.hide(); });
 
   function loadSettings() {
     return get('settings').done(function (result) {

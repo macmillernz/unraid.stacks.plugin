@@ -458,6 +458,33 @@ function stacksUI_compose_run($name, $args) {
   return stacksUI_shell_run($cmd, $dir);
 }
 
+// Like stacksUI_shell_run(), but never throws - always returns the full
+// result (stdout, stderr, exit code) regardless of success or failure.
+// Used by up/down/restart, which show their command's output to the
+// user for troubleshooting rather than just failing silently or on
+// error - compose itself writes most of its real progress ("Container
+// X Starting/Started") to stderr, not stdout, so callers that want the
+// meaningful log should look at stderr (or both), not stdout alone.
+function stacksUI_shell_run_captured($cmd, $cwd = null) {
+  $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+  $proc = proc_open($cmd, $descriptors, $pipes, $cwd);
+  if (!is_resource($proc)) {
+    return ['ok' => false, 'stdout' => '', 'stderr' => "Failed to start: $cmd", 'exitCode' => -1];
+  }
+  $stdout = stream_get_contents($pipes[1]);
+  $stderr = stream_get_contents($pipes[2]);
+  fclose($pipes[1]);
+  fclose($pipes[2]);
+  $exitCode = proc_close($proc);
+  return ['ok' => $exitCode === 0, 'stdout' => $stdout, 'stderr' => $stderr, 'exitCode' => $exitCode];
+}
+
+function stacksUI_compose_run_captured($name, $args) {
+  $dir = stacksUI_stack_dir($name);
+  $cmd = 'docker compose ' . implode(' ', array_map('escapeshellarg', $args));
+  return stacksUI_shell_run_captured($cmd, $dir);
+}
+
 // Validates compose/env syntax without touching any real stack: writes
 // to a throwaway temp directory, runs `docker compose config` there
 // (parses/resolves the file but starts nothing), then cleans up. Safe to
@@ -503,9 +530,15 @@ function stacksUI_container_networks($id) {
   return $result;
 }
 
-function stacksUI_compose_up($name) { return stacksUI_compose_run($name, ['up', '-d']); }
-function stacksUI_compose_down($name) { return stacksUI_compose_run($name, ['down']); }
-function stacksUI_compose_restart($name) { return stacksUI_compose_run($name, ['restart']); }
+// These three return the full captured result (see
+// stacksUI_shell_run_captured()) rather than throwing, so the UI can
+// show the command's actual output for troubleshooting regardless of
+// whether it succeeded - unlike stacksUI_compose_pull()/logs()/status()
+// below, which still use the throw-on-failure stacksUI_compose_run() and
+// need clean stdout only (status() parses it as JSON).
+function stacksUI_compose_up($name) { return stacksUI_compose_run_captured($name, ['up', '-d']); }
+function stacksUI_compose_down($name) { return stacksUI_compose_run_captured($name, ['down']); }
+function stacksUI_compose_restart($name) { return stacksUI_compose_run_captured($name, ['restart']); }
 function stacksUI_compose_pull($name) { return stacksUI_compose_run($name, ['pull']); }
 function stacksUI_compose_logs($name, $tail = 200) {
   return stacksUI_compose_run($name, ['logs', '--no-color', '--tail', (string)$tail]);
