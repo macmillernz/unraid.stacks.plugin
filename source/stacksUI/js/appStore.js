@@ -111,7 +111,19 @@
         meta: { logoUrl: result.meta.logoUrl },
         compose: result.compose,
         env: result.env,
-      }, { onSaved: loadCatalog });
+      }, {
+        onSaved: loadCatalog,
+        // Records which catalog app + version this stack came from, and
+        // snapshots the catalog's own compose/env as fetched (before any
+        // edits the user makes in the wizard, e.g. filling in required
+        // secrets) - see stackModal.js's save handler and
+        // stacksUI_write_vendor_snapshot() for how these are used later
+        // to check for and merge in catalog updates.
+        catalogSlug: slug,
+        catalogVersion: result.meta.version || null,
+        vendorCompose: result.compose,
+        vendorEnv: result.env,
+      });
     }).fail(function (xhr) {
       alert((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load this app\'s details.');
     }).always(function () {

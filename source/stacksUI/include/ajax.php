@@ -49,6 +49,18 @@ try {
       echo json_encode(stacksUI_list_stacks());
       break;
 
+    case 'check_updates':
+      echo json_encode(stacksUI_check_updates());
+      break;
+
+    case 'preview_update':
+      echo json_encode(stacksUI_preview_update($_REQUEST['name'] ?? ''));
+      break;
+
+    case 'apply_update':
+      echo json_encode(stacksUI_apply_update($_POST['name'] ?? ''));
+      break;
+
     case 'settings':
       echo json_encode(stacksUI_settings());
       break;
@@ -90,8 +102,21 @@ try {
       $meta = ['logoUrl' => $logoUrl !== '' ? $logoUrl : null];
       if ($action === 'create') {
         $meta['createdAt'] = date('c');
+        // Only present when this stack was created via App Store Install
+        // (see stackModal.js/appStore.js) - records which catalog app it
+        // came from and snapshots the catalog's own compose/env as
+        // fetched (not what the user may have edited in the wizard), so
+        // a later "check for updates" has a true baseline to diff
+        // against. Never set on a manual New Stack or a real Edit.
+        if (!empty($_POST['catalogSlug'])) {
+          $meta['catalogSlug'] = $_POST['catalogSlug'];
+          $meta['catalogVersion'] = $_POST['catalogVersion'] ?? null;
+        }
       }
       $backupError = stacksUI_write_stack($name, $compose, $env, $meta, $extraFiles);
+      if ($action === 'create' && !empty($_POST['catalogSlug'])) {
+        stacksUI_write_vendor_snapshot($name, $_POST['vendorCompose'] ?? '', $_POST['vendorEnv'] ?? '');
+      }
       $response = ['name' => $name];
       if ($backupError) {
         $response['backupWarning'] = "Stack saved, but backup failed: $backupError";

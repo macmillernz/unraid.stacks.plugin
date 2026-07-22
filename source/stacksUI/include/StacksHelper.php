@@ -242,7 +242,7 @@ function stacksUI_list_names() {
 // meta.json's default shape, merged under whatever's actually on disk (or
 // used as-is if the file is missing/unreadable).
 function stacksUI_default_meta() {
-  return ['logoUrl' => null, 'autostart' => false];
+  return ['logoUrl' => null, 'autostart' => false, 'catalogSlug' => null, 'catalogVersion' => null];
 }
 
 // Real bug found 2026-07-13: concurrent requests hitting the same stack's
@@ -728,6 +728,265 @@ function stacksUI_appstore_get($slug) {
     // .env is optional - not every app needs one
   }
   return ['meta' => $meta, 'compose' => $compose, 'env' => $env];
+}
+
+// ===================== Catalog update checking/merging =====================
+// A stack installed via App Store Install records which catalog app it
+// came from (meta.json's catalogSlug/catalogVersion) plus a "vendor
+// snapshot" of the catalog's own docker-compose.yml/.env exactly as
+// fetched at install time (.vendor-compose.yml/.vendor-env, alongside
+// the stack's real files - written by stacksUI_write_vendor_snapshot(),
+// called from ajax.php's "create" case). Checking for updates compares
+// the catalog's *current* meta.json version against the stack's stored
+// catalogVersion. Applying one 3-way-merges the catalog's own changes
+// (old vendor snapshot -> current catalog) into the user's live files,
+// so a value the user already set for something that still exists in
+// the new catalog version is never touched:
+//   - .env: a variable the catalog added is appended (with its default
+//     value and explanatory comment carried over); a variable the
+//     catalog no longer uses is removed ONLY if the user's live value
+//     still exactly matches the old catalog default (i.e. they never
+//     customized it) - otherwise it's left in place and just reported.
+//   - docker-compose.yml: merged with the standard `diff3 -m` 3-way
+//     merge tool. A clean merge is applied automatically; a real
+//     conflict (the user edited the same lines the catalog also
+//     changed) is written into the live file WITH standard
+//     <<<<<<</=======/>>>>>>> conflict markers rather than guessed at -
+//     the same thing `git merge` does, left for the user to resolve via
+//     Edit + Verify Syntax (which will correctly fail to parse until
+//     they do, making the conflict impossible to miss).
+
+function stacksUI_vendor_compose_path($name) { return stacksUI_stack_dir($name) . '/.vendor-compose.yml'; }
+function stacksUI_vendor_env_path($name) { return stacksUI_stack_dir($name) . '/.vendor-env'; }
+
+function stacksUI_write_vendor_snapshot($name, $compose, $env) {
+  $dir = stacksUI_stack_dir($name);
+  if (!is_dir($dir)) mkdir($dir, 0755, true);
+  file_put_contents(stacksUI_vendor_compose_path($name), $compose ?? '');
+  file_put_contents(stacksUI_vendor_env_path($name), $env ?? '');
+}
+
+// Parses a .env file into an ordered list of "blocks" - each block is a
+// KEY=VALUE line plus whatever comment/blank lines immediately precede
+// it, so a newly-added variable's explanatory comment can be carried
+// along with it into a merge rather than just appending a bare
+// KEY=VALUE line with no context. Trailing comment-only lines with no
+// following KEY=VALUE (e.g. a final blank line) are dropped - they're
+// not attached to anything.
+function stacksUI_parse_env_blocks($content) {
+  $blocks = [];
+  $pending = [];
+  foreach (explode("\n", (string)$content) as $line) {
+    $pending[] = $line;
+    if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/', $line, $m)) {
+      $blocks[] = ['key' => $m[1], 'value' => $m[2], 'lines' => $pending];
+      $pending = [];
+    }
+  }
+  return $blocks;
+}
+
+function stacksUI_env_values($content) {
+  $values = [];
+  foreach (stacksUI_parse_env_blocks($content) as $block) {
+    $values[$block['key']] = $block['value'];
+  }
+  return $values;
+}
+
+// See the big comment above this section for the merge policy. Returns
+// the merged .env text plus which keys were added/removed, for the
+// preview UI to summarize - never throws (there's no such thing as an
+// ".env conflict" under this policy, unlike compose).
+function stacksUI_merge_env($liveEnv, $oldVendorEnv, $newVendorEnv) {
+  $liveValues = stacksUI_env_values($liveEnv);
+  $oldValues = stacksUI_env_values($oldVendorEnv);
+  $newBlocks = stacksUI_parse_env_blocks($newVendorEnv);
+  $newKeys = array_column($newBlocks, 'key');
+  $oldKeys = array_keys($oldValues);
+
+  $addedKeys = array_values(array_diff($newKeys, $oldKeys));
+  $removedKeys = array_diff($oldKeys, $newKeys);
+
+  $removedSafely = [];
+  $removedButKept = [];
+  $outputLines = [];
+  foreach (stacksUI_parse_env_blocks($liveEnv) as $block) {
+    if (in_array($block['key'], $removedKeys, true)) {
+      $wasUntouched = ($liveValues[$block['key']] ?? null) === ($oldValues[$block['key']] ?? null);
+      if ($wasUntouched) {
+        $removedSafely[] = $block['key'];
+        continue; // drop this key's comment+value lines entirely
+      }
+      $removedButKept[] = $block['key'];
+    }
+    foreach ($block['lines'] as $line) $outputLines[] = $line;
+  }
+
+  if ($addedKeys) {
+    $outputLines[] = '';
+    $outputLines[] = '# --- Added by catalog update ---';
+    foreach ($newBlocks as $block) {
+      if (!in_array($block['key'], $addedKeys, true)) continue;
+      foreach ($block['lines'] as $line) $outputLines[] = $line;
+    }
+  }
+
+  return [
+    'merged' => implode("\n", $outputLines),
+    'added' => $addedKeys,
+    'removedSafely' => $removedSafely,
+    'removedButKept' => $removedButKept,
+  ];
+}
+
+// Shells out to `diff3 -m mine older yours` to 3-way-merge the catalog's
+// own changes (old vendor snapshot -> new catalog version) into the
+// user's live compose file. Exit code 0 = clean merge, 1 = merged with
+// conflict markers present in the output, 2+ = diff3 itself failed to
+// run (bad args, unreadable temp file) - only that last case is treated
+// as a real error; both 0 and 1 return normally; the caller checks the
+// output for markers.
+function stacksUI_merge_compose($liveCompose, $oldVendorCompose, $newVendorCompose) {
+  $dir = sys_get_temp_dir() . '/stacksUI-merge-' . bin2hex(random_bytes(8));
+  mkdir($dir, 0700, true);
+  try {
+    file_put_contents("$dir/mine", $liveCompose);
+    file_put_contents("$dir/older", $oldVendorCompose);
+    file_put_contents("$dir/yours", $newVendorCompose);
+    $cmd = 'diff3 -m ' . escapeshellarg("$dir/mine") . ' ' . escapeshellarg("$dir/older") . ' ' . escapeshellarg("$dir/yours");
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $proc = proc_open($cmd, $descriptors, $pipes, $dir);
+    if (!is_resource($proc)) {
+      throw new StacksUIException('Could not run diff3 - is diffutils installed?');
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($proc);
+    if ($exitCode >= 2) {
+      throw new StacksUIException('diff3 failed: ' . trim($stderr));
+    }
+    return ['merged' => $stdout, 'conflict' => strpos($stdout, '<<<<<<<') !== false];
+  } finally {
+    stacksUI_rrmdir($dir);
+  }
+}
+
+// Bulk-checks every installed stack that has a catalogSlug for a newer
+// catalog version, fetching all of them in one parallel batch (same
+// technique - and the same reason - as stacksUI_appstore_list(): one
+// sequential fetch per stack would slow down the Stacks page as more
+// stacks get installed from the App Store).
+function stacksUI_check_updates() {
+  $slugByName = [];
+  foreach (stacksUI_list_names() as $name) {
+    $meta = stacksUI_read_meta($name);
+    if (!empty($meta['catalogSlug'])) {
+      $slugByName[$name] = $meta['catalogSlug'];
+    }
+  }
+  if (!$slugByName) return [];
+
+  $urls = [];
+  foreach ($slugByName as $name => $slug) {
+    $urls[$name] = stacksUI_appstore_raw_url($slug, 'meta.json');
+  }
+  $bodies = stacksUI_http_get_multi($urls);
+
+  $result = [];
+  foreach ($slugByName as $name => $slug) {
+    $body = $bodies[$name] ?? null;
+    if ($body === null) continue; // catalog unreachable or app removed - skip, not fatal for the rest
+    $catalogMeta = json_decode($body, true);
+    if (!is_array($catalogMeta) || !isset($catalogMeta['version'])) continue;
+    $installedVersion = stacksUI_read_meta($name)['catalogVersion'] ?? null;
+    $result[$name] = [
+      'catalogSlug' => $slug,
+      'installedVersion' => $installedVersion,
+      'latestVersion' => $catalogMeta['version'],
+      'updateAvailable' => $installedVersion !== $catalogMeta['version'],
+      'changelog' => $catalogMeta['changelog'] ?? '',
+    ];
+  }
+  return $result;
+}
+
+// Computes (without writing anything) what applying the catalog's latest
+// update to one stack would do - see the big comment above this section
+// for the merge policy.
+function stacksUI_preview_update($name) {
+  $meta = stacksUI_read_meta($name);
+  $slug = $meta['catalogSlug'] ?? null;
+  if (!$slug) {
+    throw new StacksUIException("Stack '$name' wasn't installed from the App Store - nothing to check it against.");
+  }
+  $catalogMeta = json_decode(stacksUI_http_get(stacksUI_appstore_raw_url($slug, 'meta.json')), true);
+  if (!is_array($catalogMeta)) {
+    throw new StacksUIException('Could not reach the app store to check for updates.');
+  }
+  $newCompose = stacksUI_http_get(stacksUI_appstore_raw_url($slug, 'docker-compose.yml'));
+  $newEnv = '';
+  try {
+    $newEnv = stacksUI_http_get(stacksUI_appstore_raw_url($slug, '.env'));
+  } catch (Exception $e) {
+    // .env is optional for this app
+  }
+
+  $oldCompose = file_exists(stacksUI_vendor_compose_path($name)) ? file_get_contents(stacksUI_vendor_compose_path($name)) : '';
+  $oldEnv = file_exists(stacksUI_vendor_env_path($name)) ? file_get_contents(stacksUI_vendor_env_path($name)) : '';
+
+  $dir = stacksUI_stack_dir($name);
+  $liveCompose = file_exists("$dir/docker-compose.yml") ? file_get_contents("$dir/docker-compose.yml") : '';
+  $liveEnv = file_exists("$dir/.env") ? file_get_contents("$dir/.env") : '';
+
+  $envResult = stacksUI_merge_env($liveEnv, $oldEnv, $newEnv);
+  $composeResult = stacksUI_merge_compose($liveCompose, $oldCompose, $newCompose);
+
+  return [
+    'catalogSlug' => $slug,
+    'installedVersion' => $meta['catalogVersion'] ?? null,
+    'latestVersion' => $catalogMeta['version'] ?? null,
+    'changelog' => $catalogMeta['changelog'] ?? '',
+    'envAdded' => $envResult['added'],
+    'envRemovedSafely' => $envResult['removedSafely'],
+    'envRemovedButKept' => $envResult['removedButKept'],
+    'mergedEnv' => $envResult['merged'],
+    'composeConflict' => $composeResult['conflict'],
+    'mergedCompose' => $composeResult['merged'],
+    'newVendorCompose' => $newCompose,
+    'newVendorEnv' => $newEnv,
+  ];
+}
+
+// Actually applies an update: writes the merged .env, writes the merged
+// (or conflict-marked) compose.yml, and advances the stored vendor
+// snapshot + catalogVersion to the new version regardless of whether the
+// compose merge had a conflict - once this diff's been shown/applied,
+// the next update should diff from this point forward, not the old one,
+// even if the user still needs to hand-resolve a conflict left in the
+// file (matching how e.g. `git merge` also advances history on a
+// conflicted merge, leaving markers in the working tree to resolve).
+function stacksUI_apply_update($name) {
+  $preview = stacksUI_preview_update($name);
+  $dir = stacksUI_stack_dir($name);
+
+  file_put_contents("$dir/docker-compose.yml", $preview['mergedCompose']);
+  file_put_contents("$dir/.env", $preview['mergedEnv']);
+  stacksUI_write_vendor_snapshot($name, $preview['newVendorCompose'], $preview['newVendorEnv']);
+  stacksUI_update_meta($name, function ($existing) use ($preview) {
+    $existing['catalogVersion'] = $preview['latestVersion'];
+    return $existing;
+  });
+
+  try {
+    stacksUI_backup_stack($name);
+  } catch (Exception $e) {
+    // best-effort, same as stacksUI_write_stack()
+  }
+
+  return $preview;
 }
 
 function stacksUI_list_stacks() {

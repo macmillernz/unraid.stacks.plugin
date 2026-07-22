@@ -40,6 +40,17 @@
   var onSaved = function () {};
   var extraFiles = []; // [{name, content}] - additional files alongside compose/.env
 
+  // Set only when opened from an App Store Install (see opts.catalogSlug
+  // etc. in open()) - lets the create action record which catalog app
+  // this stack came from, and snapshot the catalog's own compose/env
+  // *before* the user edits anything (e.g. filling in required secrets),
+  // so a later "check for updates" has a true baseline to diff against.
+  // Always null/empty for a blank New Stack or a real Edit.
+  var catalogSlug = null;
+  var catalogVersion = null;
+  var vendorCompose = '';
+  var vendorEnv = '';
+
   function escapeHtml(s) {
     return $('<div>').text(s == null ? '' : s).html();
   }
@@ -123,6 +134,10 @@
     $fieldEnv.val((stack && stack.env) || (editing ? '' : envTemplate('')));
     extraFiles = (stack && stack.extraFiles) ? stack.extraFiles.slice() : [];
     renderExtraFiles();
+    catalogSlug = opts.catalogSlug || null;
+    catalogVersion = opts.catalogVersion || null;
+    vendorCompose = opts.vendorCompose || '';
+    vendorEnv = opts.vendorEnv || '';
     $modalError.hide().text('');
     $modalValidation.hide().removeClass('stacksUI-validation-ok stacksUI-validation-fail').text('');
     $modal.show();
@@ -203,13 +218,23 @@
       return;
     }
     var action = editingName ? 'update' : 'create';
-    post(action, {
+    var payload = {
       name: name,
       compose: compose,
       env: $fieldEnv.val(),
       logoUrl: $fieldLogo.val().trim(),
       extraFiles: JSON.stringify(extraFiles),
-    }).done(function (result) {
+    };
+    // Only ever sent on create, and only when opened from an App Store
+    // Install - never on a manual New Stack or a real Edit, so an edit
+    // can never accidentally (re)associate a stack with a catalog app.
+    if (action === 'create' && catalogSlug) {
+      payload.catalogSlug = catalogSlug;
+      payload.catalogVersion = catalogVersion;
+      payload.vendorCompose = vendorCompose;
+      payload.vendorEnv = vendorEnv;
+    }
+    post(action, payload).done(function (result) {
       $modal.hide();
       onSaved(result);
     }).fail(function (xhr) {

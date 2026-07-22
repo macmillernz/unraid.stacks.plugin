@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.20.1">
+<!ENTITY version   "2026.07.22.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "44371e3687b3fc5ea18f5d0472c4e115">
+<!ENTITY MD5       "2c0d0e61ae259370d608795585ea1071">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,32 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.22.1
+- Added catalog update tracking for stacks installed via the App Store.
+  Every catalog app now carries a version (and optional changelog); a
+  stack installed from the App Store records which app + version it came
+  from, plus a snapshot of the catalog's own compose/env at install time.
+  When the catalog moves on, the Stacks page shows an "Update available"
+  button on that stack.
+- Clicking it previews the change before touching anything: new env vars
+  the catalog added, unused ones it removed (only reported as
+  auto-removable if you never changed them from the old default -
+  otherwise left in place and just flagged), and whether the compose
+  file will merge cleanly. Values you've already set for anything that
+  still exists are never touched, no matter what.
+- The compose file is merged with a real 3-way merge (`diff3 -m`,
+  the same mechanism `git merge` is built on) - your own edits and the
+  catalog's changes both apply automatically as long as they don't
+  overlap. If they do (you edited the same lines the catalog also
+  changed), standard conflict markers (&lt;&lt;&lt;&lt;&lt;&lt;&lt; / ======= / &gt;&gt;&gt;&gt;&gt;&gt;&gt;) are
+  left in docker-compose.yml for you to resolve via Edit + Verify
+  Syntax, rather than guessed at - Verify Syntax will correctly refuse
+  to parse the file until you do, so a conflict can't be missed.
+- Requires `diff3` (part of GNU diffutils) to be present on the box for
+  the compose-merge step - unverified this release whether it's present
+  by default on a stock Unraid install; the env-var merge doesn't depend
+  on it and works regardless. Please report back if applying an update
+  errors with "Could not run diff3."
 ###2026.07.20.1
 - Added an output popup for Start/Stop/Restart on the Stacks page: instead
   of just a spinner and silence, clicking Start/Stop/Restart on a stack

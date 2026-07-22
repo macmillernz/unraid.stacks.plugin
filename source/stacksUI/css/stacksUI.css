@@ -90,6 +90,8 @@
 .stacksUI-badge-paused { background: var(--gray-600); }
 .stacksUI-badge-unknown { background: var(--gray-600); }
 
+.stacksUI-action-update { background: var(--orange-500); color: var(--white); border-color: var(--orange-500); }
+
 .stacksUI-autostart-label {
   display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--alt-text-color);
   cursor: pointer; white-space: nowrap;
