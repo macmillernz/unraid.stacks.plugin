@@ -259,14 +259,11 @@
     if (preview.envAdded.length) {
       lines.push('<p>Adds env vars: <code>' + preview.envAdded.map(escapeHtml).join('</code>, <code>') + '</code></p>');
     }
-    if (preview.envRemovedSafely.length) {
-      lines.push('<p>Removes unused env vars (still at default, safe): <code>' + preview.envRemovedSafely.map(escapeHtml).join('</code>, <code>') + '</code></p>');
-    }
-    if (preview.envRemovedButKept.length) {
-      lines.push('<p>No longer used, but you changed these so they\'re left in place: <code>' + preview.envRemovedButKept.map(escapeHtml).join('</code>, <code>') + '</code></p>');
+    if (preview.envRemoved.length) {
+      lines.push('<p>Removes unused env vars: <code>' + preview.envRemoved.map(escapeHtml).join('</code>, <code>') + '</code></p>');
     }
     if (preview.composeConflict) {
-      lines.push('<p class="stacksUI-validation stacksUI-validation-fail">Compose file: you\'ve edited the same lines this update changes - applying will leave standard conflict markers in docker-compose.yml for you to resolve via Edit + Verify Syntax.</p>');
+      lines.push('<p class="stacksUI-validation stacksUI-validation-fail">Compose file: the new catalog version put different content where you\'ve made your own edit - applying will leave standard conflict markers in docker-compose.yml for you to resolve via Edit + Verify Syntax.</p>');
     } else {
       lines.push('<p class="stacksUI-validation stacksUI-validation-ok">Compose file merges cleanly - your own edits are preserved.</p>');
     }

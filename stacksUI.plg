@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.22.6">
+<!ENTITY version   "2026.07.22.7">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "58a03bad9a3cea170144aab38a24bb21">
+<!ENTITY MD5       "5cba8767ea894bb97c0b4816eca13adb">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,21 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.22.7
+- Simplified the catalog update-merge policy per explicit instruction: a
+  variable/service the catalog no longer uses is now always removed,
+  whether or not you'd changed it - dropped the earlier "only remove if
+  still at default" caution for both .env and docker-compose.yml.
+- Fixed a real bug this surfaced while testing: docker-compose.yml
+  removals weren't applying at all when you'd also touched that exact
+  spot - diff3's normal 3-way merge treats "catalog removed this" and
+  "you edited this" as a conflict and leaves both sides in place with
+  markers, rather than actually removing anything. The merge now
+  recognizes this specific case (the new catalog version has nothing
+  there at all, not just something different) and lets the removal win
+  outright instead of leaving conflict markers. A real conflict - the
+  new catalog version put genuinely different content in that spot - is
+  still left for you to resolve via Edit + Verify Syntax, unchanged.
 ###2026.07.22.6
 - Fixed a real bug found while testing the catalog update feature:
   .vendor-compose.yml/.vendor-env (the catalog-update baseline snapshot)

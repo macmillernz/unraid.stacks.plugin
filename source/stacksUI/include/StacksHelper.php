@@ -754,20 +754,23 @@ function stacksUI_appstore_get($slug) {
 // catalogVersion. Applying one 3-way-merges the catalog's own changes
 // (old vendor snapshot -> current catalog) into the user's live files,
 // so a value the user already set for something that still exists in
-// the new catalog version is never touched:
+// the new catalog version is never touched. Removed content, though -
+// per explicit instruction (2026-07-22) - always goes, whether or not
+// the user had changed it:
 //   - .env: a variable the catalog added is appended (with its default
 //     value and explanatory comment carried over); a variable the
-//     catalog no longer uses is removed ONLY if the user's live value
-//     still exactly matches the old catalog default (i.e. they never
-//     customized it) - otherwise it's left in place and just reported.
+//     catalog no longer uses is always removed, regardless of its
+//     current value.
 //   - docker-compose.yml: merged with the standard `diff3 -m` 3-way
-//     merge tool. A clean merge is applied automatically; a real
-//     conflict (the user edited the same lines the catalog also
-//     changed) is written into the live file WITH standard
-//     <<<<<<</=======/>>>>>>> conflict markers rather than guessed at -
-//     the same thing `git merge` does, left for the user to resolve via
-//     Edit + Verify Syntax (which will correctly fail to parse until
-//     they do, making the conflict impossible to miss).
+//     merge tool, then post-processed (stacksUI_force_remove_conflicts())
+//     so that any conflict caused purely by the catalog removing
+//     something the user also touched resolves to "remove it" rather
+//     than leaving conflict markers - matching the .env policy above.
+//     A conflict is only left in place (with standard
+//     <<<<<<</=======/>>>>>>> markers, for the user to resolve via
+//     Edit + Verify Syntax) when the *new* catalog version put
+//     genuinely different content in that spot - an actual
+//     disagreement, not just "catalog deleted, user edited."
 
 function stacksUI_vendor_compose_path($name) { return stacksUI_stack_dir($name) . '/.vendor-compose.yml'; }
 function stacksUI_vendor_env_path($name) { return stacksUI_stack_dir($name) . '/.vendor-env'; }
@@ -807,12 +810,12 @@ function stacksUI_env_values($content) {
   return $values;
 }
 
-// See the big comment above this section for the merge policy. Returns
-// the merged .env text plus which keys were added/removed, for the
-// preview UI to summarize - never throws (there's no such thing as an
-// ".env conflict" under this policy, unlike compose).
+// See the big comment above this section for the merge policy - updated
+// 2026-07-22 per explicit instruction: a variable the catalog no longer
+// uses is now always removed, whether or not the user changed its
+// value. Never throws (there's no such thing as an ".env conflict"
+// under this policy, unlike compose).
 function stacksUI_merge_env($liveEnv, $oldVendorEnv, $newVendorEnv) {
-  $liveValues = stacksUI_env_values($liveEnv);
   $oldValues = stacksUI_env_values($oldVendorEnv);
   $newBlocks = stacksUI_parse_env_blocks($newVendorEnv);
   $newKeys = array_column($newBlocks, 'key');
@@ -821,17 +824,12 @@ function stacksUI_merge_env($liveEnv, $oldVendorEnv, $newVendorEnv) {
   $addedKeys = array_values(array_diff($newKeys, $oldKeys));
   $removedKeys = array_diff($oldKeys, $newKeys);
 
-  $removedSafely = [];
-  $removedButKept = [];
+  $removed = [];
   $outputLines = [];
   foreach (stacksUI_parse_env_blocks($liveEnv) as $block) {
     if (in_array($block['key'], $removedKeys, true)) {
-      $wasUntouched = ($liveValues[$block['key']] ?? null) === ($oldValues[$block['key']] ?? null);
-      if ($wasUntouched) {
-        $removedSafely[] = $block['key'];
-        continue; // drop this key's comment+value lines entirely
-      }
-      $removedButKept[] = $block['key'];
+      $removed[] = $block['key'];
+      continue; // drop this key's comment+value lines entirely
     }
     foreach ($block['lines'] as $line) $outputLines[] = $line;
   }
@@ -848,8 +846,7 @@ function stacksUI_merge_env($liveEnv, $oldVendorEnv, $newVendorEnv) {
   return [
     'merged' => implode("\n", $outputLines),
     'added' => $addedKeys,
-    'removedSafely' => $removedSafely,
-    'removedButKept' => $removedButKept,
+    'removed' => $removed,
   ];
 }
 
@@ -881,10 +878,29 @@ function stacksUI_merge_compose($liveCompose, $oldVendorCompose, $newVendorCompo
     if ($exitCode >= 2) {
       throw new StacksUIException('diff3 failed: ' . trim($stderr));
     }
+    $stdout = stacksUI_force_remove_conflicts($stdout);
     return ['merged' => $stdout, 'conflict' => strpos($stdout, '<<<<<<<') !== false];
   } finally {
     stacksUI_rrmdir($dir);
   }
+}
+
+// diff3 -m flags a conflict for ANY overlapping change - including the
+// case where the catalog simply removed something the user had also
+// edited, rather than the new catalog version putting different
+// content there. Per explicit instruction, a removal should win
+// regardless of whether the user touched that spot (matching the .env
+// policy), so: for each conflict block, if the "yours" section (the new
+// catalog's content for that exact spot, between "=======" and
+// ">>>>>>>") is empty, the catalog removed it outright - drop the whole
+// block. If "yours" has real content, that's a genuine disagreement (the
+// new catalog version put something different there, not just nothing)
+// and is left as a real conflict for the user to resolve.
+function stacksUI_force_remove_conflicts($text) {
+  $pattern = '/<<<<<<< [^\n]*\n(.*?)\|\|\|\|\|\|\| [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n?/s';
+  return preg_replace_callback($pattern, function ($m) {
+    return trim($m[3]) === '' ? '' : $m[0];
+  }, $text);
 }
 
 // Bulk-checks every installed stack that has a catalogSlug for a newer
@@ -963,8 +979,7 @@ function stacksUI_preview_update($name) {
     'latestVersion' => $catalogMeta['version'] ?? null,
     'changelog' => $catalogMeta['changelog'] ?? '',
     'envAdded' => $envResult['added'],
-    'envRemovedSafely' => $envResult['removedSafely'],
-    'envRemovedButKept' => $envResult['removedButKept'],
+    'envRemoved' => $envResult['removed'],
     'mergedEnv' => $envResult['merged'],
     'composeConflict' => $composeResult['conflict'],
     'mergedCompose' => $composeResult['merged'],
