@@ -140,6 +140,20 @@
     });
   }
 
+  // Expands and scrolls to one stack's card on the very next list render,
+  // if the App Store's Install flow left a hint behind (see appStore.js).
+  // Cleared immediately after use so it only applies once, not on every
+  // later visit/refresh of this page.
+  function expandStackFromHandoff() {
+    var name = sessionStorage.getItem('stacksUI-expand-stack');
+    if (!name) return;
+    sessionStorage.removeItem('stacksUI-expand-stack');
+    var $card = cardFor(name);
+    if (!$card.length) return;
+    $card.addClass('expanded');
+    $card[0].scrollIntoView({ block: 'center' });
+  }
+
   function loadList() {
     get('list').done(function (stacks) {
       $list.empty();
@@ -152,6 +166,7 @@
       });
       $list.find('.stacksUI-autostart').switchButton({ labels_placement: 'right', on_label: 'On', off_label: 'Off' });
       loadUpdateBadges();
+      expandStackFromHandoff();
     }).fail(function () {
       $list.html('<p class="stacksUI-empty">Failed to load stacks.</p>');
     });

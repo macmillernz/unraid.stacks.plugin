@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.22.4">
+<!ENTITY version   "2026.07.22.5">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "b31c5744d81e7550d4d05880c91cd848">
+<!ENTITY MD5       "ed792958717daecffab9117082e39aec">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,12 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.22.5
+- Installing a stack from the App Store now redirects straight to the
+  Stacks page with the new stack's card already expanded, instead of
+  staying on the catalog - lets you immediately see its containers
+  starting up rather than needing to switch tabs and find/expand it
+  yourself.
 ###2026.07.22.4
 - Fixed the real reason Delete (and likely Stop/Restart) did nothing on
   a genuinely running stack, but worked instantly once already stopped:

@@ -112,7 +112,15 @@
         compose: result.compose,
         env: result.env,
       }, {
-        onSaved: loadCatalog,
+        // After installing, go straight to the Stacks page with the new
+        // stack's card already expanded, rather than staying here on the
+        // catalog - sessionStorage carries the "expand this one" hint
+        // across the page navigation; Stacks.page's loadList() reads and
+        // clears it on the very next load (see stacksUI.js).
+        onSaved: function (saveResult) {
+          sessionStorage.setItem('stacksUI-expand-stack', saveResult.name);
+          window.location.href = '/Stacks';
+        },
         // Records which catalog app + version this stack came from, and
         // snapshots the catalog's own compose/env as fetched (before any
         // edits the user makes in the wizard, e.g. filling in required
