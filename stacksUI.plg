@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.22.1">
+<!ENTITY version   "2026.07.22.2">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "2c0d0e61ae259370d608795585ea1071">
+<!ENTITY MD5       "d522e3eb68139e4b92ba7efb7d0081c2">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,20 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.22.2
+- Fixed Delete doing nothing at all on a running stack. Root cause:
+  window.confirm() was the only native browser dialog used anywhere in
+  this plugin, and it appears to be blocked/unavailable in whatever
+  context Unraid renders this tab in - since the delete handler returned
+  immediately if confirm() didn't return true, a blocked/failed confirm()
+  meant the click silently did nothing. Replaced it with a real modal
+  (matching every other confirmation/dialog in this plugin, none of
+  which depend on a native browser dialog).
+- Also stopped silently swallowing a real `docker compose down` failure
+  during delete - the stack's files are still removed either way (same
+  as before), but a failure now surfaces as a warning ("stopping its
+  containers failed... they may still be running") instead of going
+  unreported.
 ###2026.07.22.1
 - Added catalog update tracking for stacks installed via the App Store.
   Every catalog app now carries a version (and optional changelog); a

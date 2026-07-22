@@ -72,5 +72,20 @@ Code="f24d"
   </div>
 </div>
 
+<!-- Delete confirmation - a real modal rather than window.confirm(),
+     which reportedly did nothing at all when clicked (no dialog, no
+     deletion) - likely blocked/unavailable in whatever context Unraid
+     renders this tab in, rather than something worth depending on. -->
+<div id="stacksUI-delete-confirm-modal" class="stacksUI-modal-overlay" style="display:none">
+  <div class="stacksUI-modal stacksUI-modal-narrow">
+    <h2>Delete stack?</h2>
+    <p id="stacksUI-delete-confirm-message"></p>
+    <div class="stacksUI-modal-actions">
+      <button id="stacksUI-delete-confirm-cancel" class="stacksUI-btn">Cancel</button>
+      <button id="stacksUI-delete-confirm-ok" class="stacksUI-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
 <script src="<?autov('/plugins/stacksUI/js/stackModal.js')?>"></script>
 <script src="<?autov('/plugins/stacksUI/js/stacksUI.js')?>"></script>

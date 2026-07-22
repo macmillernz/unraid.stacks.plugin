@@ -19,6 +19,9 @@
   var $updateSummary = $('#stacksUI-update-summary');
   var $updateError = $('#stacksUI-update-error');
   var updatingStackName = null;
+  var $deleteConfirmModal = $('#stacksUI-delete-confirm-modal');
+  var $deleteConfirmMessage = $('#stacksUI-delete-confirm-message');
+  var deletingStackName = null;
 
   var logsStackName = null;
   var settings = { stacksDir: '', dataRoot: '/mnt/user/appdata' };
@@ -310,9 +313,24 @@
 
   $list.on('click', '.stacksUI-action-delete', function (e) {
     e.stopPropagation();
-    var name = $(this).closest('.stacksUI-card').data('name');
-    if (!confirm('Delete stack "' + name + '"? This stops its containers and removes its compose/env files.')) return;
-    post('delete', { name: name }).always(loadList);
+    deletingStackName = $(this).closest('.stacksUI-card').data('name');
+    $deleteConfirmMessage.text('Delete stack "' + deletingStackName + '"? This stops its containers and removes its compose/env files.');
+    $deleteConfirmModal.show();
+  });
+
+  $('#stacksUI-delete-confirm-cancel').on('click', function () {
+    $deleteConfirmModal.hide();
+    deletingStackName = null;
+  });
+
+  $('#stacksUI-delete-confirm-ok').on('click', function () {
+    var name = deletingStackName;
+    $deleteConfirmModal.hide();
+    deletingStackName = null;
+    if (!name) return;
+    post('delete', { name: name }).done(function (result) {
+      if (result && result.warning) alert(result.warning);
+    }).always(loadList);
   });
 
   $list.on('click', '.stacksUI-action-edit', function (e) {

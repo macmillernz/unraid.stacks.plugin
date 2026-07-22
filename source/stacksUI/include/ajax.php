@@ -136,8 +136,10 @@ try {
       break;
 
     case 'delete':
-      stacksUI_delete_stack($_POST['name'] ?? '');
-      echo json_encode(['ok' => true]);
+      $downWarning = stacksUI_delete_stack($_POST['name'] ?? '');
+      $response = ['ok' => true];
+      if ($downWarning) $response['warning'] = $downWarning;
+      echo json_encode($response);
       break;
 
     case 'up':

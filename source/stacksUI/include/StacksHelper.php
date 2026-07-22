@@ -408,15 +408,21 @@ function stacksUI_write_stack($name, $compose, $env, $meta, $extraFiles = []) {
   }
 }
 
+// Best-effort: `down` failing (stack never started, Docker socket
+// unavailable, etc.) still shouldn't block removing the files - but
+// unlike before, the failure is no longer swallowed silently. Returns a
+// warning message if `down` failed (containers may still be running -
+// the caller should surface this), or null if it succeeded.
 function stacksUI_delete_stack($name) {
   $dir = stacksUI_stack_dir($name);
+  $downWarning = null;
   try {
     stacksUI_compose_run($name, ['down']);
-  } catch (Exception $e) {
-    // best-effort - still remove the files even if `down` fails
-    // (e.g. stack was never started, or Docker socket is unavailable)
+  } catch (ComposeCommandException $e) {
+    $downWarning = 'Stopping its containers failed (' . $e->getMessage() . ') - they may still be running.';
   }
   stacksUI_rrmdir($dir);
+  return $downWarning;
 }
 
 function stacksUI_rrmdir($dir) {
