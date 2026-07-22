@@ -314,7 +314,7 @@
   $list.on('click', '.stacksUI-action-delete', function (e) {
     e.stopPropagation();
     deletingStackName = $(this).closest('.stacksUI-card').data('name');
-    $deleteConfirmMessage.text('Delete stack "' + deletingStackName + '"? This stops its containers and removes its compose/env files.');
+    $deleteConfirmMessage.text('Delete stack "' + deletingStackName + '"? This stops its containers and removes its compose/env files. It does not remove the appdata.');
     $deleteConfirmModal.show();
   });
 
