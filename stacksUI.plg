@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.22.5">
+<!ENTITY version   "2026.07.22.6">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "ed792958717daecffab9117082e39aec">
+<!ENTITY MD5       "58a03bad9a3cea170144aab38a24bb21">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,15 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.22.6
+- Fixed a real bug found while testing the catalog update feature:
+  .vendor-compose.yml/.vendor-env (the catalog-update baseline snapshot)
+  weren't excluded from the "Additional files" list, so they showed up
+  in the Edit wizard as if they were user-manageable - and saving via
+  Edit would have deleted them outright (anything not resubmitted gets
+  removed), silently breaking future update-diffs for that stack. Added
+  both to the reserved-filenames list alongside docker-compose.yml/.env/
+  meta.json.
 ###2026.07.22.5
 - Installing a stack from the App Store now redirects straight to the
   Stacks page with the new stack's card already expanded, instead of

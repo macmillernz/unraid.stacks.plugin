@@ -310,7 +310,14 @@ function stacksUI_set_autostart($name, $autostart) {
 }
 
 // Filenames the stack itself owns - never user-uploadable "extra" files.
-const STACKSUI_RESERVED_FILENAMES = ['docker-compose.yml', '.env', 'meta.json'];
+// Real bug found 2026-07-22: .vendor-compose.yml/.vendor-env (the
+// catalog-update baseline snapshot - see stacksUI_write_vendor_snapshot())
+// weren't on this list, so they showed up in the Edit wizard's
+// "Additional files" list as if they were user-manageable - and worse,
+// saving via Edit would have deleted them outright (stacksUI_write_extra_files()
+// removes anything on disk that isn't resubmitted), silently breaking
+// every future update-diff for that stack.
+const STACKSUI_RESERVED_FILENAMES = ['docker-compose.yml', '.env', 'meta.json', '.vendor-compose.yml', '.vendor-env'];
 
 // Extra files are for anything a stack's docker-compose.yml needs
 // alongside it beyond the usual compose/.env - most commonly a file
