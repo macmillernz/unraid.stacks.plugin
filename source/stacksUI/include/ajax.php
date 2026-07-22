@@ -9,6 +9,21 @@ require_once __DIR__ . '/StacksHelper.php';
 // only ever see an empty value (already stripped) and reject everything -
 // confirmed by reading local_prepend.php directly on the box.
 
+// Real bug found 2026-07-22: deleting (or stopping) a genuinely *running*
+// stack did nothing at all, but worked instantly once the stack was
+// already stopped first. Root cause: `docker compose down` on running
+// containers needs real wall-clock time (graceful SIGTERM, up to a ~10s
+// grace period per container before SIGKILL - more for a multi-container
+// stack), while down on an already-stopped stack is nearly instant since
+// there's nothing to gracefully stop. PHP's default max_execution_time
+// (commonly 30s) could kill the request mid-`docker compose down` with
+// no error surfaced at all - the process is just gone. Every action here
+// shells out to `docker compose`, any of which could legitimately take a
+// while (image pulls, slow-stopping containers, several services
+// starting up together), so this covers the whole file rather than only
+// the specific case that was actually reported.
+set_time_limit(300);
+
 header('Content-Type: application/json');
 
 $action = $_REQUEST['action'] ?? '';

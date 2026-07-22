@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.22.3">
+<!ENTITY version   "2026.07.22.4">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "f84b3d1e9b0481f9b26630cbc0837ff7">
+<!ENTITY MD5       "b31c5744d81e7550d4d05880c91cd848">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,21 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.22.4
+- Fixed the real reason Delete (and likely Stop/Restart) did nothing on
+  a genuinely running stack, but worked instantly once already stopped:
+  `docker compose down` on running containers needs real wall-clock time
+  (graceful SIGTERM, up to a ~10s grace period per container before
+  SIGKILL, more for a multi-container stack) - down on an already-
+  stopped stack is nearly instant since there's nothing to gracefully
+  stop. PHP's default execution time limit (commonly 30s) could kill
+  the request mid-command with nothing surfaced at all - the process is
+  just gone. Every action in ajax.php now raises this to 300 seconds,
+  since any of them (image pulls, slow-stopping containers, several
+  services starting together) could legitimately take a while, not just
+  the specific case that was reported. Unverified whether anything
+  upstream of PHP (e.g. nginx's own proxy timeout) also needs raising -
+  please report back if this doesn't fully resolve it.
 ###2026.07.22.3
 - Delete confirmation now clarifies it does not remove appdata.
 ###2026.07.22.2
