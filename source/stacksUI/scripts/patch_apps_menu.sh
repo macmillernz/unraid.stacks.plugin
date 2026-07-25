@@ -27,7 +27,20 @@ for APPS_PAGE in "${APPS_PAGES[@]}"; do
 
   if [ ! -f "$BACKUP_FILE" ]; then
     mkdir -p "$(dirname "$BACKUP_FILE")"
-    cp "$APPS_PAGE" "$BACKUP_FILE"
+    if grep -q '^Menu="Tasks-hidden-by-stacksUI:80"' "$APPS_PAGE"; then
+      # Already patched with no backup on record (e.g. .apps-menu-backup
+      # was lost some other way - confirmed this actually happened: a
+      # manual redeploy that did `rm -rf` the whole stacksUI plugin dir
+      # instead of deploy.sh's rsync, which explicitly excludes this
+      # directory). Blindly cp-ing the current (already-hidden) file
+      # here would permanently immortalize the hidden state as the
+      # "original" - every future restore would just copy the hidden
+      # header right back. Reverse the known substitution instead, since
+      # it's a fully deterministic transform.
+      sed 's/^Menu="Tasks-hidden-by-stacksUI:80"/Menu="Tasks:80"/' "$APPS_PAGE" > "$BACKUP_FILE"
+    else
+      cp "$APPS_PAGE" "$BACKUP_FILE"
+    fi
   fi
 
   if grep -q '^Menu="Tasks-hidden-by-stacksUI:80"' "$APPS_PAGE"; then

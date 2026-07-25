@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.26.1">
+<!ENTITY version   "2026.07.26.2">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "ba5f850552f5aafffe2b63f3d3424c26">
+<!ENTITY MD5       "b1f2b667e2671fdc980ce3ffa4851c2b">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,24 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.26.2
+- Fixed "Hide Apps tab" (and the same latent bug in "Hide Docker tab")
+  getting permanently stuck hidden regardless of the setting: both
+  patch scripts only ever created their one-time backup of the tab's
+  true original header if no backup existed yet, blindly copying
+  whatever the file currently looked like - if that backup directory
+  was ever lost while the tab happened to already be hidden (confirmed
+  this actually happened: a manual dev-box redeploy that did `rm -rf`
+  the whole plugin directory instead of using deploy.sh's rsync, which
+  explicitly excludes these backup directories), the next patch run
+  would immortalize the *hidden* header as the "original", so every
+  future restore just copied the hidden state right back - Yes/No
+  looked identical from then on. Both scripts now reverse the known,
+  fully-deterministic hide-substitution when reconstructing a lost
+  backup from an already-hidden file, instead of trusting its current
+  content blindly. Verified live: toggling Hide Apps on/off/on/off
+  now correctly shows/hides the tab every time.
+
 ###2026.07.26.1
 - Fixed stack-name validation rejecting a "." character at all: some real
   catalog apps use a dotted shortname matching their actual upstream

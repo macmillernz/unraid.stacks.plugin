@@ -30,7 +30,17 @@ mkdir -p "$BACKUP_DIR"
 BACKUP_FILE="$BACKUP_DIR/$(basename "$DOCKER_PAGE")"
 
 if [ ! -f "$BACKUP_FILE" ]; then
-  cp "$DOCKER_PAGE" "$BACKUP_FILE"
+  if grep -q '^Menu="Tasks-hidden-by-stacksUI:60"' "$DOCKER_PAGE"; then
+    # Already patched with no backup on record - reverse the known
+    # substitution instead of blindly cp-ing the already-hidden state,
+    # which would permanently immortalize it as the "original" (every
+    # future restore would just copy the hidden header right back). Same
+    # class of bug as patch_apps_menu.sh's own backup logic - see its
+    # comment for how this was actually triggered in practice.
+    sed 's/^Menu="Tasks-hidden-by-stacksUI:60"/Menu="Tasks:60"/' "$DOCKER_PAGE" > "$BACKUP_FILE"
+  else
+    cp "$DOCKER_PAGE" "$BACKUP_FILE"
+  fi
 fi
 
 if grep -q '^Menu="Tasks-hidden-by-stacksUI:60"' "$DOCKER_PAGE"; then
