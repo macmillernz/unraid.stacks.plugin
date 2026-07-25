@@ -10,7 +10,17 @@
 // below, never this constant directly - it's configurable.
 define('STACKSUI_DEFAULT_DIR', '/boot/config/plugins/stacksUI');
 define('STACKSUI_SETTINGS_FILE', '/boot/config/plugins/stacksUI/settings.json');
-define('STACKSUI_NAME_RE', '/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$/');
+// Allows a leading/internal "." (not just alphanumeric/-/_) - some real
+// catalog apps use a dotted shortname matching their actual upstream
+// project name (e.g. "changedetection.io"). Still safe against directory
+// traversal: the first character must be alphanumeric (never "."), and
+// "/" is never in the allowed set, so no matched string can ever contain
+// a ".." path segment. This same regex also gates catalog slugs (see
+// stacksUI_appstore_list()/stacksUI_appstore_get()) - before this fix,
+// any catalog app whose directory name contained a "." was silently
+// excluded from the App Store list entirely, on top of failing "create"
+// if somehow attempted anyway.
+define('STACKSUI_NAME_RE', '/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}$/');
 
 // App Store catalog: a public GitHub repo, one directory per app, each
 // holding meta.json (displayName/shortname/category/description/

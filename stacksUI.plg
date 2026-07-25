@@ -18,7 +18,7 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.25.2">
+<!ENTITY version   "2026.07.26.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
@@ -32,6 +32,20 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.26.1
+- Fixed stack-name validation rejecting a "." character at all: some real
+  catalog apps use a dotted shortname matching their actual upstream
+  project name (e.g. "changedetection.io"), which used to fail with
+  "Stack name must be alphanumeric..." - surfaced as a scary-looking but
+  non-fatal "Backup failed for: changedetection.io" warning on every
+  Settings save (stacksUI_backup_all() iterates every existing stack),
+  and would have equally blocked actually installing that app via the
+  App Store at all. Same regex also gates catalog slugs, so a dotted app
+  like this was also silently missing from the App Store list entirely
+  before this fix. Still safe against directory traversal - the first
+  character must still be alphanumeric, and "/" is never permitted, so
+  no valid name can ever contain a ".." path segment.
+
 ###2026.07.25.2
 - CRITICAL FIX: 2026.07.25.1 shipped with CRLF line endings on every
   ".page"/.php/.js/.css/.sh file, packaged from a Windows working-tree
