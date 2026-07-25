@@ -1,2 +1,24 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Force LF on checkout regardless of the checking-out machine's core.autocrlf
+# setting - "text=auto" alone still lets a Windows checkout with
+# core.autocrlf=true produce CRLF working-tree files. That's silently fatal
+# here: Unraid's own webGui parses every plugin ".page" file by splitting on
+# the LITERAL byte sequence "\n---\n" (see webGui/include/PageBuilder.php's
+# build_pages()) - a CRLF-terminated "---" line means that split never
+# matches, the whole file gets fed to parse_ini_string() as if it were the
+# header, that fails, and the page is silently dropped from the nav/Settings
+# menu with only a log line (no visible error) - exactly the "the whole
+# plugin disappeared after updating" bug this fixes. Shell scripts are
+# equally fatal with CRLF (a CRLF-terminated "#!/bin/bash" shebang is a
+# "bad interpreter" error). package.sh copies source/stacksUI/ verbatim into
+# the shipped .txz, so whatever line endings are on disk at package time are
+# exactly what ships - this must be forced, not just "auto".
+*.page eol=lf
+*.php  eol=lf
+*.js   eol=lf
+*.css  eol=lf
+*.sh   eol=lf
+*.plg  eol=lf
+source/stacksUI/event/docker_started/* eol=lf

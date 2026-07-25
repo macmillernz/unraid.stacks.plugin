@@ -18,7 +18,7 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.25.1">
+<!ENTITY version   "2026.07.25.2">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
@@ -32,6 +32,30 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.25.2
+- CRITICAL FIX: 2026.07.25.1 shipped with CRLF line endings on every
+  ".page"/.php/.js/.css/.sh file, packaged from a Windows working-tree
+  checkout where core.autocrlf silently converts the repo's LF-stored
+  files to CRLF on disk (the git history itself was never affected -
+  confirmed via `git show`). Unraid's own webGui parses each plugin
+  ".page" file by splitting on the literal byte sequence "\n---\n"
+  (see webGui/include/PageBuilder.php's build_pages()) - a CRLF
+  "---" line means that split never matches, the whole file gets fed to
+  parse_ini_string() as the "header", that fails, and the page is
+  silently dropped from $site with only a log line - no crash, no
+  visible error. Net effect: every one of this plugin's own pages
+  (Stacks, Stacks App Store, Stacks UI settings, the Dashboard tile)
+  vanished from the nav bar and Settings page after updating, while
+  every other native Unraid menu/page kept working normally, since
+  none of them go through this plugin's broken files.
+- Root-caused and confirmed directly on the dev box: reproduced the
+  exact silent-parse-failure with a live PHP test against the deployed
+  files, then confirmed LF-normalizing the same bytes parses cleanly.
+- Fixed by normalizing every affected file to LF and adding explicit
+  `eol=lf` rules to .gitattributes (the previous `text=auto` alone
+  wasn't enough to prevent this on a machine with core.autocrlf=true)
+  so this can't silently recur on a future build from any machine.
+
 ###2026.07.25.1
 - App Store Install now goes through a new confirmation dialog instead of
   the raw compose/env editor: a network dropdown (existing docker
