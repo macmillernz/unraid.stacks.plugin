@@ -36,6 +36,13 @@ _(Backup path)_ (optional):
 
 > If set, a copy of a stack's docker-compose.yml/.env/meta.json is mirrored here after every create/edit. Leave blank to disable.
 
+_(Default network)_:
+: <select id="stacksUI-settings-defaultnetwork">
+  <option value="default">Default</option>
+  </select>
+
+> Pre-selects the network dropdown shown when installing an app from the App Store. "Default" means no external network - each stack gets compose's own implicit per-project network. Populated from the docker networks that actually exist on this box.
+
 _(Hide Docker tab)_:
 : <select class='narrow' id="stacksUI-toggle-hideDocker">
   <option value="1">Yes</option>

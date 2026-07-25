@@ -18,7 +18,7 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.22.7">
+<!ENTITY version   "2026.07.25.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
@@ -32,6 +32,30 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.25.1
+- App Store Install now goes through a new confirmation dialog instead of
+  the raw compose/env editor: a network dropdown (existing docker
+  networks, live-queried, plus "Default" for no external network) and
+  auto-generated/rotatable fields for every required password/secret the
+  catalog app declares (detected from ".env" "changeme" placeholders and
+  compose "${VAR:?message}" syntax), plus plain required fields for
+  anything else needed (e.g. a domain/URL) with no safe auto-generated
+  value. Saving now also starts the stack automatically instead of
+  requiring a separate manual "Start" afterward. A manual "New Stack" or
+  "Edit" still uses the previous raw editor unchanged - this only
+  replaces the App Store's own Install flow.
+- Added a new "Default network" setting (a live dropdown of real docker
+  networks, same list the install dialog uses) that pre-selects the
+  install dialog's network choice.
+- New backend: stacksUI_list_docker_networks(), stacksUI_parse_required_fields(),
+  stacksUI_apply_network_choice(), stacksUI_apply_field_values(),
+  stacksUI_prepare_install()/stacksUI_finalize_install() (validates the
+  rewritten compose before it's ever written to disk - neither create nor
+  update validated before this).
+- Fixed a related gap found while building this: "create" had no
+  duplicate-stack-name guard at all (silently overwriting an existing
+  stack of the same name) - now rejected with a clear error.
+
 ###2026.07.22.7
 - Simplified the catalog update-merge policy per explicit instruction: a
   variable/service the catalog no longer uses is now always removed,

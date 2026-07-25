@@ -28,7 +28,7 @@ Markdown="false"
   </div>
 </div>
 
-<?php include "$docroot/plugins/stacksUI/include/stack_modal.php"; ?>
+<?php include "$docroot/plugins/stacksUI/include/install_confirm_modal.php"; ?>
 
-<script src="<?autov('/plugins/stacksUI/js/stackModal.js')?>"></script>
+<script src="<?autov('/plugins/stacksUI/js/installConfirmModal.js')?>"></script>
 <script src="<?autov('/plugins/stacksUI/js/appStore.js')?>"></script>

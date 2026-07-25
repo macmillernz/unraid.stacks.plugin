@@ -106,31 +106,18 @@
     var originalText = $btn.text();
     $btn.prop('disabled', true).text('Loading…');
     get('store_get', { slug: slug }).done(function (result) {
-      StacksUIModal.open({
+      // The confirmation dialog (js/installConfirmModal.js) handles
+      // everything from here: network choice, auto-generated/rotatable
+      // secrets, create + auto-start. Unlike the old raw-editor modal,
+      // this is Install-only - a manual New Stack/Edit still uses
+      // stack_modal.php/stackModal.js from Stacks.page.
+      StacksUIInstallConfirm.open({
         name: result.meta.shortname || slug,
         meta: { logoUrl: result.meta.logoUrl },
         compose: result.compose,
         env: result.env,
-      }, {
-        // After installing, go straight to the Stacks page with the new
-        // stack's card already expanded, rather than staying here on the
-        // catalog - sessionStorage carries the "expand this one" hint
-        // across the page navigation; Stacks.page's loadList() reads and
-        // clears it on the very next load (see stacksUI.js).
-        onSaved: function (saveResult) {
-          sessionStorage.setItem('stacksUI-expand-stack', saveResult.name);
-          window.location.href = '/Stacks';
-        },
-        // Records which catalog app + version this stack came from, and
-        // snapshots the catalog's own compose/env as fetched (before any
-        // edits the user makes in the wizard, e.g. filling in required
-        // secrets) - see stackModal.js's save handler and
-        // stacksUI_write_vendor_snapshot() for how these are used later
-        // to check for and merge in catalog updates.
-        catalogSlug: slug,
-        catalogVersion: result.meta.version || null,
-        vendorCompose: result.compose,
-        vendorEnv: result.env,
+        slug: slug,
+        version: result.meta.version || null,
       });
     }).fail(function (xhr) {
       alert((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load this app\'s details.');
@@ -140,14 +127,6 @@
   });
 
   $('#stacksUI-appstore-refresh').on('click', loadCatalog);
-
-  // Keeps the shared modal's DATA_ROOT suggestion consistent with the
-  // user's actual configured setting (see StacksHelper.php's settings) -
-  // matters if an installed app has no .env template of its own to fall
-  // back on.
-  get('settings').done(function (result) {
-    StacksUIModal.setDataRoot(result.dataRoot);
-  });
 
   loadCatalog();
 })(jQuery);

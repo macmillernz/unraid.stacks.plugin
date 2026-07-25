@@ -45,6 +45,21 @@ function stacksUI_decode_extra_files($json) {
   return $files;
 }
 
+// Decodes the install confirmation dialog's required-field values (secret
+// and plain alike - a JSON object of {KEY: value}) into a plain assoc
+// array, same silently-drop-anything-malformed approach as
+// stacksUI_decode_extra_files() above.
+function stacksUI_decode_field_values($json) {
+  $decoded = json_decode($json ?? '{}', true);
+  $values = [];
+  if (is_array($decoded)) {
+    foreach ($decoded as $key => $value) {
+      if (is_string($key) && is_string($value)) $values[$key] = $value;
+    }
+  }
+  return $values;
+}
+
 function stacksUI_fail($e) {
   if ($e instanceof InvalidStackNameException) {
     http_response_code(400);
@@ -89,7 +104,7 @@ try {
       // fields back to blank/false - stacksUI_save_settings() falls back
       // to the current value for anything not present here.
       $payload = [];
-      foreach (['stacksDir', 'dataRoot', 'backupPath'] as $key) {
+      foreach (['stacksDir', 'dataRoot', 'backupPath', 'defaultNetwork'] as $key) {
         if (isset($_POST[$key])) $payload[$key] = trim($_POST[$key]);
       }
       foreach (['hideDocker', 'hideApps', 'enableAppStore'] as $key) {
@@ -112,6 +127,15 @@ try {
       if ($compose === '') {
         http_response_code(400);
         echo json_encode(['error' => 'Compose file contents are required']);
+        break;
+      }
+      // stacksUI_write_stack() itself has no duplicate-name guard (it's
+      // also used by "update", which legitimately writes over an existing
+      // stack) - "create" specifically must not silently overwrite an
+      // already-installed stack of the same name.
+      if ($action === 'create' && stacksUI_stack_exists($name)) {
+        http_response_code(409);
+        echo json_encode(['error' => "A stack named \"$name\" already exists."]);
         break;
       }
       $meta = ['logoUrl' => $logoUrl !== '' ? $logoUrl : null];
@@ -185,6 +209,28 @@ try {
 
     case 'store_get':
       echo json_encode(stacksUI_appstore_get($_REQUEST['slug'] ?? ''));
+      break;
+
+    case 'list_networks':
+      echo json_encode(['networks' => stacksUI_list_docker_networks()]);
+      break;
+
+    case 'prepare_install':
+      echo json_encode(stacksUI_prepare_install($_POST['compose'] ?? '', $_POST['env'] ?? ''));
+      break;
+
+    case 'generate_secret':
+      echo json_encode(['value' => stacksUI_generate_secret($_REQUEST['key'] ?? null)]);
+      break;
+
+    case 'finalize_install':
+      $fieldValues = stacksUI_decode_field_values($_POST['fieldValues'] ?? '{}');
+      echo json_encode(stacksUI_finalize_install(
+        $_POST['vendorCompose'] ?? '',
+        $_POST['vendorEnv'] ?? '',
+        $_POST['networkChoice'] ?? 'default',
+        $fieldValues
+      ));
       break;
 
     default:

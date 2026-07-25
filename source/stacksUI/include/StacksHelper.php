@@ -55,6 +55,12 @@ function stacksUI_validate_name($name) {
 // Docker, hide Apps, keep our own App Store tab shown), matching this
 // plugin's existing pre-Settings-page behavior so upgrading doesn't
 // change anything for existing installs until a user opts out.
+// defaultNetwork pre-selects the App Store install confirmation dialog's
+// network dropdown (see stacksUI_prepare_install()) - the literal string
+// 'default' is a sentinel meaning "no external network, let compose use
+// its own implicit per-project network", never a real docker network
+// name, so it's always a valid fallback even before any real network is
+// chosen/exists.
 function stacksUI_settings() {
   $defaults = [
     'stacksDir' => STACKSUI_DEFAULT_DIR,
@@ -63,6 +69,7 @@ function stacksUI_settings() {
     'hideDocker' => true,
     'hideApps' => true,
     'enableAppStore' => true,
+    'defaultNetwork' => 'default',
   ];
   if (!file_exists(STACKSUI_SETTINGS_FILE)) return $defaults;
   $decoded = json_decode(file_get_contents(STACKSUI_SETTINGS_FILE), true);
@@ -141,6 +148,11 @@ function stacksUI_save_settings($newSettings) {
   $hideDocker = (bool)($newSettings['hideDocker'] ?? $current['hideDocker']);
   $hideApps = (bool)($newSettings['hideApps'] ?? $current['hideApps']);
   $enableAppStore = (bool)($newSettings['enableAppStore'] ?? $current['enableAppStore']);
+  // No path-style validation needed here (unlike stacksDir/dataRoot/
+  // backupPath above) - it's either the 'default' sentinel or a docker
+  // network name chosen from a live dropdown, never free-typed.
+  $defaultNetwork = trim($newSettings['defaultNetwork'] ?? $current['defaultNetwork']);
+  if ($defaultNetwork === '') $defaultNetwork = 'default';
 
   $moved = stacksUI_move_stacks($current['stacksDir'], $stacksDir);
   $settings = [
@@ -150,6 +162,7 @@ function stacksUI_save_settings($newSettings) {
     'hideDocker' => $hideDocker,
     'hideApps' => $hideApps,
     'enableAppStore' => $enableAppStore,
+    'defaultNetwork' => $defaultNetwork,
   ];
   if (!is_dir(dirname(STACKSUI_SETTINGS_FILE))) {
     mkdir(dirname(STACKSUI_SETTINGS_FILE), 0755, true);
@@ -543,6 +556,37 @@ function stacksUI_container_networks($id) {
   return $result;
 }
 
+// Lists real Docker networks the host currently has, for the App Store
+// install confirmation dialog's network picker (and the matching Default
+// Network setting) - "none"/"host" are dropped since neither is a usable
+// target for a compose "external: true" network. Uses the classic Go-
+// template `--format '{{json .}}'` (NDJSON, one object per line) rather
+// than the newer `--format json` keyword shorthand, matching how
+// stacksUI_container_networks() above already calls `docker inspect` -
+// the newer shorthand isn't guaranteed present on older bundled Docker
+// Engine versions some Unraid installs still run.
+function stacksUI_list_docker_networks() {
+  $cmd = 'docker network ls --format ' . escapeshellarg('{{json .}}');
+  try {
+    $output = trim(stacksUI_shell_run($cmd));
+  } catch (Exception $e) {
+    return [];
+  }
+  if ($output === '') return [];
+  $names = [];
+  foreach (explode("\n", $output) as $line) {
+    $line = trim($line);
+    if ($line === '') continue;
+    $decoded = json_decode($line, true);
+    if (!is_array($decoded)) continue;
+    $name = $decoded['Name'] ?? '';
+    if ($name === '' || in_array($name, ['none', 'host'], true)) continue;
+    $names[] = $name;
+  }
+  sort($names);
+  return $names;
+}
+
 // These three return the full captured result (see
 // stacksUI_shell_run_captured()) rather than throwing, so the UI can
 // show the command's actual output for troubleshooting regardless of
@@ -741,6 +785,205 @@ function stacksUI_appstore_get($slug) {
     // .env is optional - not every app needs one
   }
   return ['meta' => $meta, 'compose' => $compose, 'env' => $env];
+}
+
+// ===================== App Store install confirmation =====================
+// Backs the App Store install confirmation dialog (js/installConfirmModal.js):
+// on Install, the user picks a network from a dropdown and fills in
+// auto-generated (rotatable) secrets + any other required-but-unfillable
+// values, instead of hand-editing the raw compose/env like a manual New
+// Stack. Two-step design mirrors stacksUI_preview_update()/
+// stacksUI_apply_update() above: "prepare" computes what to show without
+// writing anything, "finalize" computes the actual compose/.env text to
+// hand to the existing "create" action - it still does the writing.
+
+function stacksUI_stack_exists($name) {
+  $dir = stacksUI_stack_dir($name);
+  return is_dir($dir) && file_exists("$dir/docker-compose.yml");
+}
+
+// A fresh random secret - single source of truth for "what does a
+// generated password/secret look like" (used both for a field's initial
+// default and for the dialog's per-field Rotate button), so that only
+// ever needs to change in one place. Defaults to 48 hex chars (24 random
+// bytes, matching the `openssl rand -hex 24` values used throughout this
+// catalog's own manual testing), EXCEPT for the couple of vars where a
+// plain random string is actually wrong: confirmed live during the
+// catalog's own testing pass (see bookstack's/speedtest-tracker's own
+// .env comments) that Laravel's APP_KEY must be "base64:<32 random
+// bytes>" specifically - a generic hex string fails with a 500 error at
+// runtime instead of a validation error, so this needs to be right by
+// default rather than something the user discovers after Install.
+function stacksUI_generate_secret($key = null) {
+  if ($key !== null && strtoupper($key) === 'APP_KEY') {
+    return 'base64:' . base64_encode(random_bytes(32));
+  }
+  return bin2hex(random_bytes(24));
+}
+
+// Finds every var that needs a real value before this stack can actually
+// run, from the two conventions the catalog (unraid.compose.apps) itself
+// uses - some required vars appear only as a ".env" placeholder, others
+// only as a compose "${VAR:?message}" with no .env entry at all:
+//   1. ".env" lines whose value contains "changeme" (case-insensitive) -
+//      the catalog's own placeholder convention for "fill this in".
+//   2. compose "${VAR:?message}" interpolations not already covered by 1.
+// isSecret flags which of these should get the generate/rotate treatment
+// vs. a plain required text field the user has to type themselves (e.g.
+// a domain/URL/email has no safe auto-generated value) - matched by
+// keyword against the var's own name, the same heuristic already used
+// (and validated across the whole catalog) by this plugin author's own
+// manual test scripts during the catalog's testing pass.
+function stacksUI_parse_required_fields($compose, $env) {
+  $secretKeywordRe = '/PASS|SECRET|KEY|TOKEN|PWD|AUTH/i';
+  $fields = [];
+
+  foreach (explode("\n", (string)$env) as $line) {
+    if (!preg_match('/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/', $line, $m)) continue;
+    if (stripos($m[2], 'changeme') === false) continue;
+    $fields[$m[1]] = [
+      'key' => $m[1],
+      'source' => 'env',
+      'message' => null,
+      'isSecret' => (bool)preg_match($secretKeywordRe, $m[1]),
+    ];
+  }
+
+  if (preg_match_all('/\$\{([A-Za-z_][A-Za-z0-9_]*):\?([^}]*)\}/', (string)$compose, $matches, PREG_SET_ORDER)) {
+    foreach ($matches as $m) {
+      if (isset($fields[$m[1]])) continue; // already found via .env above
+      $fields[$m[1]] = [
+        'key' => $m[1],
+        'source' => 'compose',
+        'message' => trim($m[2]),
+        'isSecret' => (bool)preg_match($secretKeywordRe, $m[1]),
+      ];
+    }
+  }
+
+  $result = array_values($fields);
+  foreach ($result as &$field) {
+    $field['defaultValue'] = $field['isSecret'] ? stacksUI_generate_secret($field['key']) : '';
+  }
+  unset($field);
+  return $result;
+}
+
+// Finds every network name declared "external: true" at the compose's
+// top level - written to detect whatever name is actually present rather
+// than hardcoding "swag", though in practice this always resolves to
+// exactly one match given the catalog's now-uniform shape (every app was
+// standardized to a single external "swag" network during this plugin's
+// companion catalog-hardening pass). Returns them in the order found.
+function stacksUI_detect_external_networks($compose) {
+  $lines = explode("\n", (string)$compose);
+  $names = [];
+  $inTopNetworks = false;
+  $count = count($lines);
+  for ($i = 0; $i < $count; $i++) {
+    $line = $lines[$i];
+    if (preg_match('/^networks:\s*$/', $line)) {
+      $inTopNetworks = true;
+      continue;
+    }
+    if (!$inTopNetworks) continue;
+    // Any other non-blank 0-indent line ends the top-level networks block.
+    if ($line !== '' && !preg_match('/^\s/', $line)) {
+      $inTopNetworks = false;
+      continue;
+    }
+    if (preg_match('/^  ([A-Za-z0-9_.-]+):\s*$/', $line, $m)) {
+      $next = $lines[$i + 1] ?? '';
+      if (preg_match('/^\s*external:\s*true\s*$/', $next)) {
+        $names[] = $m[1];
+      }
+    }
+  }
+  return $names;
+}
+
+// Rewrites the compose's network reference based on the dialog's dropdown
+// choice: strips it entirely for the 'default' sentinel (no external
+// network - each service just gets compose's own implicit per-project
+// network), or renames every detected external network to the chosen
+// real docker network otherwise. Line-based, not a YAML parser (this
+// codebase treats compose as opaque text everywhere else too) - safe
+// specifically because it only ever runs on catalog-sourced compose,
+// whose exact shape (4-space "networks:"/6-space network-key per
+// service; 0-indent "networks:"/2-indent network-key/4-indent
+// "external: true" at the top level) was verified uniform across the
+// entire catalog during this plugin's companion catalog-hardening pass.
+// CRLF is normalized first defensively (raw GitHub fetches are LF, but
+// cheap to guard against regardless).
+function stacksUI_apply_network_choice($compose, $networkChoice) {
+  $compose = str_replace("\r\n", "\n", (string)$compose);
+  $networkChoice = trim((string)$networkChoice);
+  $detected = stacksUI_detect_external_networks($compose);
+  if (!$detected) return $compose; // nothing to rewrite - leave as-is
+
+  if ($networkChoice === '' || $networkChoice === 'default') {
+    foreach ($detected as $name) {
+      $quoted = preg_quote($name, '/');
+      $compose = preg_replace('/^    networks:\n      ' . $quoted . ':\n/m', '', $compose);
+      $compose = preg_replace('/^networks:\n  ' . $quoted . ':\n    external:\s*true\s*$\n?/m', '', $compose);
+    }
+    return $compose;
+  }
+
+  foreach ($detected as $name) {
+    $quoted = preg_quote($name, '/');
+    $compose = preg_replace('/^(    networks:\n      )' . $quoted . '(:\n)/m', '$1' . $networkChoice . '$2', $compose);
+    $compose = preg_replace('/^(networks:\n  )' . $quoted . '(:\n    external:\s*true)/m', '$1' . $networkChoice . '$2', $compose);
+  }
+  return $compose;
+}
+
+// Line-based ".env" rewrite: replaces an existing "KEY=..." line for each
+// submitted value, or appends a new "KEY=value" line for one with no
+// existing line at all (covers a var that was only ever required via
+// compose's "${VAR:?message}", never present in .env to begin with).
+function stacksUI_apply_field_values($env, array $values) {
+  $env = str_replace("\r\n", "\n", (string)$env);
+  $lines = $env === '' ? [] : explode("\n", $env);
+  $seen = [];
+  foreach ($lines as &$line) {
+    if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)=/', $line, $m) && array_key_exists($m[1], $values)) {
+      $line = $m[1] . '=' . $values[$m[1]];
+      $seen[$m[1]] = true;
+    }
+  }
+  unset($line);
+  foreach ($values as $key => $value) {
+    if (!isset($seen[$key])) $lines[] = $key . '=' . $value;
+  }
+  return implode("\n", $lines);
+}
+
+function stacksUI_prepare_install($compose, $env) {
+  $detected = stacksUI_detect_external_networks($compose);
+  return [
+    'requiredFields' => stacksUI_parse_required_fields($compose, $env),
+    'detectedNetworkKey' => $detected[0] ?? null,
+    'networks' => stacksUI_list_docker_networks(),
+    'defaultNetworkSetting' => stacksUI_settings()['defaultNetwork'],
+  ];
+}
+
+// Computes the actual compose/.env text to write, from the catalog's
+// original (vendor) snapshot plus the dialog's network choice + field
+// values - the caller then hands this straight to the existing "create"
+// action unchanged. Validates before returning (see
+// stacksUI_validate_compose()) - neither create nor update validates
+// today (only the raw editor's own "Verify Syntax" button does), but
+// this rewrite path can plausibly produce bad YAML if some future
+// catalog entry doesn't match the shape stacksUI_apply_network_choice()
+// assumes, so catch it here rather than as a cryptic `up` failure after
+// the stack's already been written to disk.
+function stacksUI_finalize_install($vendorCompose, $vendorEnv, $networkChoice, array $fieldValues) {
+  $compose = stacksUI_apply_network_choice($vendorCompose, $networkChoice);
+  $env = stacksUI_apply_field_values($vendorEnv, $fieldValues);
+  stacksUI_validate_compose($compose, $env, []);
+  return ['compose' => $compose, 'env' => $env];
 }
 
 // ===================== Catalog update checking/merging =====================

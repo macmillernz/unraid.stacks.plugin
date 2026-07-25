@@ -202,3 +202,15 @@
   flex: 1 1 auto; font-size: 13px; color: var(--text-color); margin: 10px 0;
 }
 .stacksUI-appstore-card-actions { display: flex; justify-content: flex-end; }
+
+/* --- App Store install confirmation dialog
+   (include/install_confirm_modal.php / js/installConfirmModal.js) --- */
+.stacksUI-installConfirm-modal { width: 480px; }
+.stacksUI-installConfirm-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.stacksUI-installConfirm-header h2 { margin: 0; }
+/* Reuses the same label-row flex layout as the raw editor's Upload
+   button row (stack_modal.php) - label on the left, Show/Rotate buttons
+   on the right, same spacing convention. */
+.stacksUI-installConfirm-row .stacksUI-installConfirm-input {
+  display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
+}
