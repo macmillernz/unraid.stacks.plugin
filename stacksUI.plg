@@ -24,7 +24,7 @@ can check for updates.
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "5cba8767ea894bb97c0b4816eca13adb">
+<!ENTITY MD5       "6430f7130f920262bf60b6f328eaac93">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
