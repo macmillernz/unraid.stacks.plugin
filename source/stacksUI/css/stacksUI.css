@@ -214,3 +214,5 @@
 .stacksUI-installConfirm-row .stacksUI-installConfirm-input {
   display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
 }
+.stacksUI-checkbox-row { display: flex; align-items: center; gap: 8px; }
+.stacksUI-checkbox-row input[type="checkbox"] { width: auto; margin: 0; }

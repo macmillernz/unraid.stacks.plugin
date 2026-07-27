@@ -111,11 +111,11 @@
           '<button class="stacksUI-btn stacksUI-action-toggle" data-action="' + toggleAction + '">' + toggleLabel + '</button>' +
           '<button class="stacksUI-btn stacksUI-action-restart">Restart</button>' +
           '<button class="stacksUI-btn stacksUI-action-logs">Logs</button>' +
-          '<button class="stacksUI-btn stacksUI-action-edit">Edit</button>' +
         '</div>' +
       '</div>' +
       '<div class="stacksUI-card-body">' + renderContainers(stack.containers || []) +
         '<div class="stacksUI-card-body-actions">' +
+          '<button class="stacksUI-btn stacksUI-action-edit">Edit</button>' +
           '<button class="stacksUI-btn stacksUI-action-delete">Delete</button>' +
         '</div>' +
       '</div>'
@@ -349,7 +349,7 @@
     e.stopPropagation();
     var name = $(this).closest('.stacksUI-card').data('name');
     get('get', { name: name }).done(function (stack) {
-      StacksUIModal.open(stack, { editing: true, onSaved: onStackSaved });
+      StacksUIInstallConfirm.open(stack, { editing: true, onSaved: onStackSaved });
     });
   });
 

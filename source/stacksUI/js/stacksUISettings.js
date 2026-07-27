@@ -8,6 +8,7 @@
   var $dataRoot = $('#stacksUI-settings-dataroot');
   var $backup = $('#stacksUI-settings-backup');
   var $defaultNetwork = $('#stacksUI-settings-defaultnetwork');
+  var $defaultTld = $('#stacksUI-settings-defaulttld');
   var $hideDocker = $('#stacksUI-toggle-hideDocker');
   var $hideApps = $('#stacksUI-toggle-hideApps');
   var $enableAppStore = $('#stacksUI-toggle-enableAppStore');
@@ -50,6 +51,7 @@
     $hideDocker.val(settings.hideDocker ? '1' : '0');
     $hideApps.val(settings.hideApps ? '1' : '0');
     $enableAppStore.val(settings.enableAppStore ? '1' : '0');
+    $defaultTld.val(settings.defaultTld);
     pendingNetworkValue = settings.defaultNetwork || 'default';
     applyNetworkValue();
   }).fail(function (xhr) {
@@ -76,6 +78,7 @@
       dataRoot: dataRoot,
       backupPath: backupPath,
       defaultNetwork: $defaultNetwork.val(),
+      defaultTld: $defaultTld.val().trim(),
       hideDocker: $hideDocker.val(),
       hideApps: $hideApps.val(),
       enableAppStore: $enableAppStore.val(),

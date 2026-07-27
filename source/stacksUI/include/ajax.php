@@ -104,7 +104,7 @@ try {
       // fields back to blank/false - stacksUI_save_settings() falls back
       // to the current value for anything not present here.
       $payload = [];
-      foreach (['stacksDir', 'dataRoot', 'backupPath', 'defaultNetwork'] as $key) {
+      foreach (['stacksDir', 'dataRoot', 'backupPath', 'defaultNetwork', 'defaultTld'] as $key) {
         if (isset($_POST[$key])) $payload[$key] = trim($_POST[$key]);
       }
       foreach (['hideDocker', 'hideApps', 'enableAppStore'] as $key) {
@@ -219,6 +219,10 @@ try {
       echo json_encode(stacksUI_prepare_install($_POST['compose'] ?? '', $_POST['env'] ?? ''));
       break;
 
+    case 'prepare_edit':
+      echo json_encode(stacksUI_prepare_edit($_REQUEST['name'] ?? ''));
+      break;
+
     case 'generate_secret':
       echo json_encode(['value' => stacksUI_generate_secret($_REQUEST['key'] ?? null)]);
       break;
@@ -229,7 +233,8 @@ try {
         $_POST['vendorCompose'] ?? '',
         $_POST['vendorEnv'] ?? '',
         $_POST['networkChoice'] ?? 'default',
-        $fieldValues
+        $fieldValues,
+        ($_POST['exposePorts'] ?? '1') === '1'
       ));
       break;
 

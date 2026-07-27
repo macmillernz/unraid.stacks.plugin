@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.26.2">
+<!ENTITY version   "2026.07.27.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "b1f2b667e2671fdc980ce3ffa4851c2b">
+<!ENTITY MD5       "34e8c8b2c685d6997d183da8b12a76bd">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,27 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.27.1
+- Added "Default TLD" to Settings: a domain suffix (e.g. "zettalabs.xyz")
+  used to suggest a value for any host/domain/URL-shaped required field
+  (BASE_URL, APP_DOMAIN, HOSTNAME, etc.) in the Install/Edit dialog as
+  "&lt;stack name&gt;.&lt;TLD&gt;" instead of leaving it blank. Leave empty
+  to suggest nothing, same as before.
+- Added "Expose container ports" to the Install/Edit dialog: unchecking
+  it strips every "ports:" block from the compose file before saving, so
+  the stack publishes no host ports and is only reachable via whatever
+  network it's on (e.g. a reverse proxy). Pre-checked/unchecked to match
+  whatever the compose currently has.
+- Moved the Edit button next to Delete (in the expanded card body)
+  instead of the collapsed header row, to declutter the collapsed card.
+- Edit Stack now opens the same dialog as an App Store Install (network
+  picker, required fields with rotatable secrets, expose-ports toggle)
+  instead of the raw compose/env editor - manual full-text editing is
+  still available via a new "View Raw" button in that same dialog, which
+  drops into the old raw editor pre-filled with whatever the dialog
+  currently computes to. Saving from Edit no longer force-restarts the
+  stack, matching the old raw-editor Edit's behavior.
+
 ###2026.07.26.2
 - Fixed "Hide Apps tab" (and the same latent bug in "Hide Docker tab")
   getting permanently stuck hidden regardless of the setting: both

@@ -71,6 +71,11 @@ function stacksUI_validate_name($name) {
 // its own implicit per-project network", never a real docker network
 // name, so it's always a valid fallback even before any real network is
 // chosen/exists.
+// defaultTld feeds the same dialog's required-field pre-filling: a
+// hostname/domain-shaped field (key matching HOST/DOMAIN/URL) gets
+// suggested as "<stackname>.<defaultTld>" instead of being left blank,
+// when one is configured - see installConfirmModal.js's renderFields().
+// Empty string means "don't suggest anything", the safe default.
 function stacksUI_settings() {
   $defaults = [
     'stacksDir' => STACKSUI_DEFAULT_DIR,
@@ -80,6 +85,7 @@ function stacksUI_settings() {
     'hideApps' => true,
     'enableAppStore' => true,
     'defaultNetwork' => 'default',
+    'defaultTld' => '',
   ];
   if (!file_exists(STACKSUI_SETTINGS_FILE)) return $defaults;
   $decoded = json_decode(file_get_contents(STACKSUI_SETTINGS_FILE), true);
@@ -163,6 +169,13 @@ function stacksUI_save_settings($newSettings) {
   // network name chosen from a live dropdown, never free-typed.
   $defaultNetwork = trim($newSettings['defaultNetwork'] ?? $current['defaultNetwork']);
   if ($defaultNetwork === '') $defaultNetwork = 'default';
+  // Strip a leading "." and any protocol/path a user might paste in by
+  // habit (e.g. "https://zettalabs.xyz/") - this is meant to be joined as
+  // "<stackname>.<tld>", so it needs to be a bare domain suffix.
+  $defaultTld = trim($newSettings['defaultTld'] ?? $current['defaultTld']);
+  $defaultTld = preg_replace('#^https?://#i', '', $defaultTld);
+  $defaultTld = ltrim($defaultTld, '.');
+  $defaultTld = rtrim($defaultTld, '/');
 
   $moved = stacksUI_move_stacks($current['stacksDir'], $stacksDir);
   $settings = [
@@ -173,6 +186,7 @@ function stacksUI_save_settings($newSettings) {
     'hideApps' => $hideApps,
     'enableAppStore' => $enableAppStore,
     'defaultNetwork' => $defaultNetwork,
+    'defaultTld' => $defaultTld,
   ];
   if (!is_dir(dirname(STACKSUI_SETTINGS_FILE))) {
     mkdir(dirname(STACKSUI_SETTINGS_FILE), 0755, true);
@@ -844,11 +858,27 @@ function stacksUI_generate_secret($key = null) {
 // keyword against the var's own name, the same heuristic already used
 // (and validated across the whole catalog) by this plugin author's own
 // manual test scripts during the catalog's testing pass.
-function stacksUI_parse_required_fields($compose, $env) {
+// $vendorEnv defaults to $env itself - the install case, where nothing's
+// been customized yet and the "current" content IS the vendor template
+// (still carrying its "changeme" placeholders). Editing an existing
+// stack passes its real .vendor-env snapshot instead (if one exists -
+// see stacksUI_prepare_edit()): $env is then the LIVE .env, with real
+// values, so its own "changeme" markers are long gone and can't be used
+// to detect which keys matter - only the vendor snapshot still shows
+// that. This matters for any app whose real password/secret vars are
+// only ever enforced via the catalog's own ".env" "changeme" convention,
+// never a compose "${VAR:?message}" - e.g. anything using env_file to
+// pass a whole .env straight through, which bypasses compose-level
+// interpolation entirely (nextcloud's services are exactly this shape).
+// Without the vendor snapshot, editing such a stack would show none of
+// its real required fields at all, since neither detection method would
+// fire against its current (already-filled-in) live .env.
+function stacksUI_parse_required_fields($compose, $env, $vendorEnv = null) {
+  if ($vendorEnv === null) $vendorEnv = $env;
   $secretKeywordRe = '/PASS|SECRET|KEY|TOKEN|PWD|AUTH/i';
   $fields = [];
 
-  foreach (explode("\n", (string)$env) as $line) {
+  foreach (explode("\n", (string)$vendorEnv) as $line) {
     if (!preg_match('/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/', $line, $m)) continue;
     if (stripos($m[2], 'changeme') === false) continue;
     $fields[$m[1]] = [
@@ -871,9 +901,22 @@ function stacksUI_parse_required_fields($compose, $env) {
     }
   }
 
+  // Pre-fill with whatever real value $env (the live .env, for an edit)
+  // already has - only fall back to a fresh auto-generated secret / a
+  // blank field when there's no real value yet (a brand new install, or
+  // this field only ever existed via compose's own ":?", never a .env
+  // line at all). Guards against $env itself still being the vendor
+  // template (the install case) by checking that the "current" value
+  // doesn't still look like an unfilled "changeme" placeholder.
+  $liveValues = stacksUI_env_values($env);
   $result = array_values($fields);
   foreach ($result as &$field) {
-    $field['defaultValue'] = $field['isSecret'] ? stacksUI_generate_secret($field['key']) : '';
+    $current = $liveValues[$field['key']] ?? null;
+    if ($current !== null && $current !== '' && stripos($current, 'changeme') === false) {
+      $field['defaultValue'] = $current;
+    } else {
+      $field['defaultValue'] = $field['isSecret'] ? stacksUI_generate_secret($field['key']) : '';
+    }
   }
   unset($field);
   return $result;
@@ -948,6 +991,45 @@ function stacksUI_apply_network_choice($compose, $networkChoice) {
   return $compose;
 }
 
+// Whether the compose declares a "ports:" block anywhere (at any
+// indent/service) - used to pre-check the install/edit dialog's "Expose
+// container" toggle to match whatever's actually there right now.
+function stacksUI_has_ports($compose) {
+  return (bool)preg_match('/^\s*ports:\s*$/m', str_replace("\r\n", "\n", (string)$compose));
+}
+
+// Strips every "ports:" block (the key line plus its list-item lines,
+// wherever it appears/however deeply nested) - used when "Expose
+// container" is turned off, so the stack is reachable only via whatever
+// network it's on (e.g. a reverse proxy) and never publishes a host
+// port directly. Indent-aware rather than hardcoded to one specific
+// depth, since it needs to work on any service in the file, not just
+// the catalog's usual single "app" service. A "ports:" line is dropped
+// along with every following line indented deeper than it; the block
+// ends at the first line back at (or above) that same indent.
+function stacksUI_strip_ports($compose) {
+  $compose = str_replace("\r\n", "\n", (string)$compose);
+  $lines = explode("\n", $compose);
+  $result = [];
+  $skipping = false;
+  $skipIndent = null;
+  foreach ($lines as $line) {
+    if ($skipping) {
+      if (preg_match('/^(\s*)\S/', $line, $m) && strlen($m[1]) > $skipIndent) {
+        continue; // still part of the ports: block being dropped
+      }
+      $skipping = false; // falls through to normal handling below
+    }
+    if (preg_match('/^(\s*)ports:\s*$/', $line, $m)) {
+      $skipping = true;
+      $skipIndent = strlen($m[1]);
+      continue; // drop the "ports:" line itself too
+    }
+    $result[] = $line;
+  }
+  return implode("\n", $result);
+}
+
 // Line-based ".env" rewrite: replaces an existing "KEY=..." line for each
 // submitted value, or appends a new "KEY=value" line for one with no
 // existing line at all (covers a var that was only ever required via
@@ -971,11 +1053,45 @@ function stacksUI_apply_field_values($env, array $values) {
 
 function stacksUI_prepare_install($compose, $env) {
   $detected = stacksUI_detect_external_networks($compose);
+  $settings = stacksUI_settings();
   return [
     'requiredFields' => stacksUI_parse_required_fields($compose, $env),
     'detectedNetworkKey' => $detected[0] ?? null,
     'networks' => stacksUI_list_docker_networks(),
-    'defaultNetworkSetting' => stacksUI_settings()['defaultNetwork'],
+    'defaultNetworkSetting' => $settings['defaultNetwork'],
+    'defaultTld' => $settings['defaultTld'],
+    'exposePorts' => stacksUI_has_ports($compose),
+  ];
+}
+
+// Same idea as stacksUI_prepare_install(), but reverse-detects the
+// current state of an already-existing stack instead of a freshly-
+// fetched catalog template - backs the Edit dialog, which is meant to
+// look and behave like Install (see the big comment above this
+// section). Reads the stack's own vendor snapshot if it has one (only
+// true for a stack installed via the App Store - see
+// stacksUI_write_vendor_snapshot()) so required-field detection can
+// still find anything only ever enforced via a ".env" "changeme"
+// placeholder (see stacksUI_parse_required_fields()'s own comment) -
+// falls back to null (live .env only) for a manually-created stack,
+// which never had one to begin with.
+function stacksUI_prepare_edit($name) {
+  $dir = stacksUI_stack_dir($name);
+  $compose = file_exists("$dir/docker-compose.yml") ? file_get_contents("$dir/docker-compose.yml") : '';
+  $env = file_exists("$dir/.env") ? file_get_contents("$dir/.env") : '';
+  $vendorEnv = file_exists(stacksUI_vendor_env_path($name)) ? file_get_contents(stacksUI_vendor_env_path($name)) : null;
+
+  $detected = stacksUI_detect_external_networks($compose);
+  $settings = stacksUI_settings();
+  return [
+    'compose' => $compose,
+    'env' => $env,
+    'requiredFields' => stacksUI_parse_required_fields($compose, $env, $vendorEnv),
+    'detectedNetworkKey' => $detected[0] ?? null,
+    'networks' => stacksUI_list_docker_networks(),
+    'defaultNetworkSetting' => $settings['defaultNetwork'],
+    'defaultTld' => $settings['defaultTld'],
+    'exposePorts' => stacksUI_has_ports($compose),
   ];
 }
 
@@ -989,8 +1105,9 @@ function stacksUI_prepare_install($compose, $env) {
 // catalog entry doesn't match the shape stacksUI_apply_network_choice()
 // assumes, so catch it here rather than as a cryptic `up` failure after
 // the stack's already been written to disk.
-function stacksUI_finalize_install($vendorCompose, $vendorEnv, $networkChoice, array $fieldValues) {
+function stacksUI_finalize_install($vendorCompose, $vendorEnv, $networkChoice, array $fieldValues, $exposePorts = true) {
   $compose = stacksUI_apply_network_choice($vendorCompose, $networkChoice);
+  if (!$exposePorts) $compose = stacksUI_strip_ports($compose);
   $env = stacksUI_apply_field_values($vendorEnv, $fieldValues);
   stacksUI_validate_compose($compose, $env, []);
   return ['compose' => $compose, 'env' => $env];
