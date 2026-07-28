@@ -44,9 +44,17 @@ _(Default network)_:
 > Pre-selects the network dropdown shown when installing an app from the App Store. "Default" means no external network - each stack gets compose's own implicit per-project network. Populated from the docker networks that actually exist on this box.
 
 _(Default TLD)_ (optional):
-: <input type="text" id="stacksUI-settings-defaulttld" placeholder="e.g. zettalabs.xyz">
+: <input type="text" id="stacksUI-settings-defaulttld" placeholder="e.g. example.com">
 
 > Used to suggest a hostname/domain for install fields that need one (e.g. a BASE_URL or HOST setting) - "&lt;stack name&gt;.&lt;this&gt;" instead of leaving it blank. Leave empty to suggest nothing.
+
+_(Reverse Proxy)_:
+: <select class='narrow' id="stacksUI-settings-reverseproxy">
+  <option value="1">Yes</option>
+  <option value="0">No</option>
+  </select>
+
+> When enabled, the Install/Edit dialog prompts for a Subdomain (defaulting to "&lt;stack name&gt;.&lt;Default TLD&gt;") for any catalog app that declares reverse-proxy support - it's applied to that app's trusted-domain/hostname/trusted-proxy variables automatically. Apps that don't declare support are unaffected either way.
 
 _(Hide Docker tab)_:
 : <select class='narrow' id="stacksUI-toggle-hideDocker">

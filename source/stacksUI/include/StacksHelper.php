@@ -86,6 +86,7 @@ function stacksUI_settings() {
     'enableAppStore' => true,
     'defaultNetwork' => 'default',
     'defaultTld' => '',
+    'reverseProxy' => false,
   ];
   if (!file_exists(STACKSUI_SETTINGS_FILE)) return $defaults;
   $decoded = json_decode(file_get_contents(STACKSUI_SETTINGS_FILE), true);
@@ -164,6 +165,7 @@ function stacksUI_save_settings($newSettings) {
   $hideDocker = (bool)($newSettings['hideDocker'] ?? $current['hideDocker']);
   $hideApps = (bool)($newSettings['hideApps'] ?? $current['hideApps']);
   $enableAppStore = (bool)($newSettings['enableAppStore'] ?? $current['enableAppStore']);
+  $reverseProxy = (bool)($newSettings['reverseProxy'] ?? $current['reverseProxy']);
   // No path-style validation needed here (unlike stacksDir/dataRoot/
   // backupPath above) - it's either the 'default' sentinel or a docker
   // network name chosen from a live dropdown, never free-typed.
@@ -187,6 +189,7 @@ function stacksUI_save_settings($newSettings) {
     'enableAppStore' => $enableAppStore,
     'defaultNetwork' => $defaultNetwork,
     'defaultTld' => $defaultTld,
+    'reverseProxy' => $reverseProxy,
   ];
   if (!is_dir(dirname(STACKSUI_SETTINGS_FILE))) {
     mkdir(dirname(STACKSUI_SETTINGS_FILE), 0755, true);
@@ -1051,7 +1054,40 @@ function stacksUI_apply_field_values($env, array $values) {
   return implode("\n", $lines);
 }
 
-function stacksUI_prepare_install($compose, $env) {
+// Applies the Reverse Proxy subdomain (Settings > Reverse Proxy, plus the
+// dialog's own Subdomain field) to whichever env vars a catalog app
+// declares supporting it via its meta.json's optional "reverseProxy"
+// block - see the App Store catalog's own README for the exact schema.
+// No-op (returns $env unchanged) if $reverseProxyMeta is empty/not an
+// array, or $subdomain is blank, so callers never need to guard this
+// themselves:
+//   hostVars         -> the bare subdomain (e.g. "plex.example.com") -
+//                       matches vars like NEXTCLOUD_TRUSTED_DOMAINS/
+//                       OVERWRITEHOST that want a host, not a full URL.
+//   urlVars          -> "https://<subdomain>" - matches vars like
+//                       OVERWRITECLIURL that want a full absolute URL.
+//   protocolVars     -> the fixed string "https" - a reverse proxy is
+//                       assumed to be TLS-terminating.
+//   trustedProxyVars -> a fixed list of private-network CIDR ranges
+//                       covering typical Docker bridge/macvlan subnets,
+//                       matching what a reverse proxy container's own
+//                       address is expected to fall within (confirmed
+//                       against the Nextcloud+Authentik case this
+//                       mirrors - see project memory).
+function stacksUI_apply_reverse_proxy($env, $reverseProxyMeta, $subdomain) {
+  $subdomain = trim((string)$subdomain);
+  if ($subdomain === '' || !is_array($reverseProxyMeta)) return $env;
+
+  $values = [];
+  foreach ((array)($reverseProxyMeta['hostVars'] ?? []) as $key) $values[$key] = $subdomain;
+  foreach ((array)($reverseProxyMeta['urlVars'] ?? []) as $key) $values[$key] = 'https://' . $subdomain;
+  foreach ((array)($reverseProxyMeta['protocolVars'] ?? []) as $key) $values[$key] = 'https';
+  foreach ((array)($reverseProxyMeta['trustedProxyVars'] ?? []) as $key) $values[$key] = '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16';
+
+  return $values ? stacksUI_apply_field_values($env, $values) : $env;
+}
+
+function stacksUI_prepare_install($compose, $env, $reverseProxyMeta = null) {
   $detected = stacksUI_detect_external_networks($compose);
   $settings = stacksUI_settings();
   return [
@@ -1061,6 +1097,8 @@ function stacksUI_prepare_install($compose, $env) {
     'defaultNetworkSetting' => $settings['defaultNetwork'],
     'defaultTld' => $settings['defaultTld'],
     'exposePorts' => stacksUI_has_ports($compose),
+    'reverseProxyMeta' => $reverseProxyMeta,
+    'reverseProxyEnabled' => $settings['reverseProxy'] && !empty($reverseProxyMeta),
   ];
 }
 
@@ -1081,6 +1119,26 @@ function stacksUI_prepare_edit($name) {
   $env = file_exists("$dir/.env") ? file_get_contents("$dir/.env") : '';
   $vendorEnv = file_exists(stacksUI_vendor_env_path($name)) ? file_get_contents(stacksUI_vendor_env_path($name)) : null;
 
+  // Only a stack installed via the App Store has a catalogSlug to look
+  // this up by - re-fetched fresh from the catalog (same pattern as
+  // stacksUI_preview_update()) rather than trusting anything cached
+  // locally, since the catalog's reverseProxy metadata can change
+  // independently of this stack's own docker-compose.yml/.env. A
+  // manually-created stack, or the catalog being unreachable, just means
+  // no Subdomain field this time - never fatal to Edit itself.
+  $meta = stacksUI_read_meta($name);
+  $reverseProxyMeta = null;
+  if (!empty($meta['catalogSlug'])) {
+    try {
+      $catalogMeta = json_decode(stacksUI_http_get(stacksUI_appstore_raw_url($meta['catalogSlug'], 'meta.json')), true);
+      if (is_array($catalogMeta) && !empty($catalogMeta['reverseProxy'])) {
+        $reverseProxyMeta = $catalogMeta['reverseProxy'];
+      }
+    } catch (Exception $e) {
+      // Catalog unreachable - fall through with reverseProxyMeta still null.
+    }
+  }
+
   $detected = stacksUI_detect_external_networks($compose);
   $settings = stacksUI_settings();
   return [
@@ -1092,6 +1150,8 @@ function stacksUI_prepare_edit($name) {
     'defaultNetworkSetting' => $settings['defaultNetwork'],
     'defaultTld' => $settings['defaultTld'],
     'exposePorts' => stacksUI_has_ports($compose),
+    'reverseProxyMeta' => $reverseProxyMeta,
+    'reverseProxyEnabled' => $settings['reverseProxy'] && !empty($reverseProxyMeta),
   ];
 }
 
@@ -1105,10 +1165,11 @@ function stacksUI_prepare_edit($name) {
 // catalog entry doesn't match the shape stacksUI_apply_network_choice()
 // assumes, so catch it here rather than as a cryptic `up` failure after
 // the stack's already been written to disk.
-function stacksUI_finalize_install($vendorCompose, $vendorEnv, $networkChoice, array $fieldValues, $exposePorts = true) {
+function stacksUI_finalize_install($vendorCompose, $vendorEnv, $networkChoice, array $fieldValues, $exposePorts = true, $reverseProxyMeta = null, $subdomain = '') {
   $compose = stacksUI_apply_network_choice($vendorCompose, $networkChoice);
   if (!$exposePorts) $compose = stacksUI_strip_ports($compose);
   $env = stacksUI_apply_field_values($vendorEnv, $fieldValues);
+  $env = stacksUI_apply_reverse_proxy($env, $reverseProxyMeta, $subdomain);
   stacksUI_validate_compose($compose, $env, []);
   return ['compose' => $compose, 'env' => $env];
 }

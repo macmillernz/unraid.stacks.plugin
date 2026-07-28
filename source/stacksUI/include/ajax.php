@@ -107,7 +107,7 @@ try {
       foreach (['stacksDir', 'dataRoot', 'backupPath', 'defaultNetwork', 'defaultTld'] as $key) {
         if (isset($_POST[$key])) $payload[$key] = trim($_POST[$key]);
       }
-      foreach (['hideDocker', 'hideApps', 'enableAppStore'] as $key) {
+      foreach (['hideDocker', 'hideApps', 'enableAppStore', 'reverseProxy'] as $key) {
         if (isset($_POST[$key])) $payload[$key] = $_POST[$key] === '1';
       }
       echo json_encode(stacksUI_save_settings($payload));
@@ -216,7 +216,12 @@ try {
       break;
 
     case 'prepare_install':
-      echo json_encode(stacksUI_prepare_install($_POST['compose'] ?? '', $_POST['env'] ?? ''));
+      $reverseProxyMeta = json_decode($_POST['reverseProxyMeta'] ?? 'null', true);
+      echo json_encode(stacksUI_prepare_install(
+        $_POST['compose'] ?? '',
+        $_POST['env'] ?? '',
+        is_array($reverseProxyMeta) ? $reverseProxyMeta : null
+      ));
       break;
 
     case 'prepare_edit':
@@ -229,12 +234,15 @@ try {
 
     case 'finalize_install':
       $fieldValues = stacksUI_decode_field_values($_POST['fieldValues'] ?? '{}');
+      $reverseProxyMeta = json_decode($_POST['reverseProxyMeta'] ?? 'null', true);
       echo json_encode(stacksUI_finalize_install(
         $_POST['vendorCompose'] ?? '',
         $_POST['vendorEnv'] ?? '',
         $_POST['networkChoice'] ?? 'default',
         $fieldValues,
-        ($_POST['exposePorts'] ?? '1') === '1'
+        ($_POST['exposePorts'] ?? '1') === '1',
+        is_array($reverseProxyMeta) ? $reverseProxyMeta : null,
+        $_POST['subdomain'] ?? ''
       ));
       break;
 

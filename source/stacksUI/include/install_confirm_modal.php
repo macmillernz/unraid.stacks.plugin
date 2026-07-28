@@ -28,6 +28,10 @@
       Expose container ports
     </label>
     <p class="stacksUI-hint">If off, ports aren't published on the host - the stack is only reachable via its chosen network (e.g. a reverse proxy).</p>
+    <label id="stacksUI-installConfirm-subdomain-row" style="display:none">
+      Subdomain
+      <input type="text" id="stacksUI-installConfirm-subdomain" placeholder="e.g. plex.example.com">
+    </label>
     <div id="stacksUI-installConfirm-fields"></div>
     <p id="stacksUI-installConfirm-loading" class="stacksUI-hint">Loading&hellip;</p>
     <p id="stacksUI-installConfirm-error" class="stacksUI-error" style="display:none"></p>

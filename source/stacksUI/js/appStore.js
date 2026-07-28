@@ -118,6 +118,10 @@
         env: result.env,
         slug: slug,
         version: result.meta.version || null,
+        // Optional per-app reverse-proxy env var mapping (Settings >
+        // Reverse Proxy) - null for any app that doesn't declare it, in
+        // which case the dialog simply never shows a Subdomain field.
+        reverseProxy: result.meta.reverseProxy || null,
       });
     }).fail(function (xhr) {
       alert((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load this app\'s details.');

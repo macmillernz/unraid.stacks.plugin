@@ -7,12 +7,15 @@
 // editor (include/stack_modal.php + js/stackModal.js) unchanged - and
 // either mode here can drop into that same raw editor via "View Raw".
 // Exposes window.StacksUIInstallConfirm.open(appDetail, opts):
-//   appDetail: {name, meta:{logoUrl}, compose, env, slug, version} for
-//   Install (the catalog app's own fetched detail, see appStore.js's
-//   store_get call) - compose/env here are the catalog's vendor
-//   template. For Edit, {name, meta, extraFiles} is enough (compose/env
-//   aren't needed from the caller - prepare_edit fetches the stack's own
-//   current live files itself, see stacksUI.js's Edit handler).
+//   appDetail: {name, meta:{logoUrl}, compose, env, slug, version,
+//   reverseProxy} for Install (the catalog app's own fetched detail, see
+//   appStore.js's store_get call) - compose/env here are the catalog's
+//   vendor template, reverseProxy is that app's optional meta.json
+//   reverseProxy block (null if it doesn't declare one). For Edit,
+//   {name, meta, extraFiles} is enough (compose/env/reverseProxy aren't
+//   needed from the caller - prepare_edit looks all of that up itself
+//   from the stack's own live files + stored catalogSlug, see
+//   stacksUI.js's Edit handler).
 //   opts.editing: true for Edit (name field locked, calls prepare_edit/
 //   update instead of prepare_install/create, no auto-start/redirect on
 //   save - matching the old raw-editor Edit's behavior).
@@ -48,6 +51,8 @@
   var $name = $('#stacksUI-installConfirm-name');
   var $network = $('#stacksUI-installConfirm-network');
   var $exposePorts = $('#stacksUI-installConfirm-exposeports');
+  var $subdomainRow = $('#stacksUI-installConfirm-subdomain-row');
+  var $subdomain = $('#stacksUI-installConfirm-subdomain');
   var $fields = $('#stacksUI-installConfirm-fields');
   var $loading = $('#stacksUI-installConfirm-loading');
   var $error = $('#stacksUI-installConfirm-error');
@@ -59,6 +64,11 @@
   var editingStackName = null; // null => install mode
   var extraFilesForSave = []; // preserved through Edit's save (and View Raw), since this dialog never edits them itself
   var onSaved = function () {};
+  // The app's own reverseProxy block from meta.json (see StacksHelper.php's
+  // stacksUI_apply_reverse_proxy() for the schema) - null for any app that
+  // doesn't declare it, or when Settings > Reverse Proxy is off, in which
+  // case the Subdomain field never shows and this is never sent anywhere.
+  var currentReverseProxyMeta = null;
 
   // Host/domain/URL-shaped required-field keys (BASE_URL, APP_DOMAIN,
   // HOSTNAME, etc.) get suggested as "<stack name>.<defaultTld>" instead
@@ -117,6 +127,30 @@
     });
   }
 
+  // Best-effort default for the Subdomain field: prefers whatever value
+  // the app's first declared hostVar already has in $envText (Edit, where
+  // a subdomain may already be set from a previous save - takes the first
+  // entry if that var is a space/comma-separated list), falling back to
+  // the "<stack name>.<Default TLD>" template (Install, or Edit with
+  // nothing set yet). Returns '' (leave blank) if there's no Default TLD
+  // configured and nothing already set - never guesses a bare stack name
+  // with no domain at all.
+  function guessSubdomain(reverseProxyMeta, envText, stackName, defaultTld) {
+    var hostVars = (reverseProxyMeta && reverseProxyMeta.hostVars) || [];
+    if (hostVars.length && envText) {
+      var values = {};
+      envText.split('\n').forEach(function (line) {
+        var m = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+        if (m) values[m[1]] = m[2];
+      });
+      for (var i = 0; i < hostVars.length; i++) {
+        var v = (values[hostVars[i]] || '').trim();
+        if (v) return v.split(/[ ,]/)[0];
+      }
+    }
+    return defaultTld ? ((stackName || '') + '.' + defaultTld) : '';
+  }
+
   function collectFieldValues() {
     var values = {};
     $fields.find('.stacksUI-installConfirm-row').each(function () {
@@ -168,6 +202,9 @@
     $fields.empty();
     $network.empty();
     $exposePorts.prop('checked', true);
+    $subdomainRow.hide();
+    $subdomain.val('');
+    currentReverseProxyMeta = null;
     $loading.show();
     $install.prop('disabled', true).text(editing ? 'Save' : 'Install');
     $modal.show();
@@ -175,10 +212,18 @@
     // Edit fetches the stack's own current live compose/env itself
     // (prepare_edit) rather than relying on whatever the caller passed
     // in - see stacksUI.js's Edit handler, which only needs to pass
-    // {name, meta, extraFiles}.
+    // {name, meta, extraFiles}. Install sends its own reverseProxy block
+    // along (already in hand from the App Store fetch, see appStore.js)
+    // so the backend can combine it with the Settings toggle; Edit's
+    // prepare_edit looks its own up server-side instead (via the stack's
+    // stored catalogSlug), since the caller here never has it.
     var prepareCall = editing
       ? get('prepare_edit', { name: displayName })
-      : post('prepare_install', { compose: appDetail.compose, env: appDetail.env });
+      : post('prepare_install', {
+          compose: appDetail.compose,
+          env: appDetail.env,
+          reverseProxyMeta: JSON.stringify(appDetail.reverseProxy || null),
+        });
 
     prepareCall.done(function (result) {
       if (editing) {
@@ -194,6 +239,16 @@
       populateNetworkSelect(result.networks || [], preselectNetwork);
       renderFields(result.requiredFields || [], result.defaultTld, displayName);
       $exposePorts.prop('checked', !!result.exposePorts);
+      // Gated on both the Settings > Reverse Proxy toggle AND this app
+      // declaring support (result.reverseProxyEnabled combines both) -
+      // currentReverseProxyMeta stays null (nothing gets applied on save)
+      // whenever either one is off, regardless of what the app itself
+      // supports.
+      if (result.reverseProxyEnabled) {
+        currentReverseProxyMeta = result.reverseProxyMeta || null;
+        $subdomain.val(guessSubdomain(currentReverseProxyMeta, editing ? result.env : '', displayName, result.defaultTld));
+        $subdomainRow.show();
+      }
       $loading.hide();
       $install.prop('disabled', false);
     }).fail(function (xhr) {
@@ -237,6 +292,12 @@
       networkChoice: $network.val(),
       fieldValues: JSON.stringify(collectFieldValues()),
       exposePorts: $exposePorts.prop('checked') ? '1' : '0',
+      // currentReverseProxyMeta is only ever non-null when the Subdomain
+      // row is showing (see open()) - safe to always send both regardless
+      // of that, since stacksUI_apply_reverse_proxy() no-ops on a null
+      // meta or blank subdomain either way.
+      reverseProxyMeta: JSON.stringify(currentReverseProxyMeta),
+      subdomain: $subdomain.val().trim(),
     });
   }
 

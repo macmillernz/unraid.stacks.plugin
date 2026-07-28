@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.27.1">
+<!ENTITY version   "2026.07.28.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "34e8c8b2c685d6997d183da8b12a76bd">
+<!ENTITY MD5       "5024c273389a405f542cedbe7e87ecf4">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,18 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.28.1
+- Added "Reverse Proxy" to Settings: when enabled, the Install/Edit
+  dialog prompts for a Subdomain (defaulting to "&lt;stack name&gt;.&lt;Default
+  TLD&gt;") for any catalog app that declares reverse-proxy support - it's
+  written into that app's trusted-domain/hostname/canonical-URL/trusted-
+  proxy env vars automatically, instead of needing every one of those
+  vars found and filled in by hand. Off by default; apps that don't
+  declare support (most of the catalog) are unaffected either way, same
+  as before this existed.
+- Fixed the "Default TLD" setting's placeholder example using a real
+  domain instead of a generic one.
+
 ###2026.07.27.1
 - Added "Default TLD" to Settings: a domain suffix (e.g. "zettalabs.xyz")
   used to suggest a value for any host/domain/URL-shaped required field
