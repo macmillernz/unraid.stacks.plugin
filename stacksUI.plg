@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.28.1">
+<!ENTITY version   "2026.07.28.2">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "5024c273389a405f542cedbe7e87ecf4">
+<!ENTITY MD5       "6f2cd83e398f1340061ea16e724735e2">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,10 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.28.2
+- Fixed a leftover real-domain example in a code comment (should never
+  have been anything but a generic placeholder like "example.com").
+
 ###2026.07.28.1
 - Added "Reverse Proxy" to Settings: when enabled, the Install/Edit
   dialog prompts for a Subdomain (defaulting to "&lt;stack name&gt;.&lt;Default
@@ -45,7 +49,7 @@ can check for updates.
   domain instead of a generic one.
 
 ###2026.07.27.1
-- Added "Default TLD" to Settings: a domain suffix (e.g. "zettalabs.xyz")
+- Added "Default TLD" to Settings: a domain suffix (e.g. "example.com")
   used to suggest a value for any host/domain/URL-shaped required field
   (BASE_URL, APP_DOMAIN, HOSTNAME, etc.) in the Install/Edit dialog as
   "&lt;stack name&gt;.&lt;TLD&gt;" instead of leaving it blank. Leave empty

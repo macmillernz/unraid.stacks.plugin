@@ -172,7 +172,7 @@ function stacksUI_save_settings($newSettings) {
   $defaultNetwork = trim($newSettings['defaultNetwork'] ?? $current['defaultNetwork']);
   if ($defaultNetwork === '') $defaultNetwork = 'default';
   // Strip a leading "." and any protocol/path a user might paste in by
-  // habit (e.g. "https://zettalabs.xyz/") - this is meant to be joined as
+  // habit (e.g. "https://example.com/") - this is meant to be joined as
   // "<stackname>.<tld>", so it needs to be a bare domain suffix.
   $defaultTld = trim($newSettings['defaultTld'] ?? $current['defaultTld']);
   $defaultTld = preg_replace('#^https?://#i', '', $defaultTld);
