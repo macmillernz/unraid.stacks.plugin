@@ -101,7 +101,15 @@
     }
   }
 
-  function renderFields(requiredFields, defaultTld, stackName) {
+  // allowRotate is false for Edit's full-env-var view (see open()):
+  // auto-generating a fresh random value is safe on Install (nothing
+  // exists yet to desync from), but on an already-running stack it would
+  // silently disagree with whatever the actual service (e.g. a database)
+  // still has configured, breaking the app until manually fixed up -
+  // "Show" stays available either way, since viewing an existing secret
+  // is always safe.
+  function renderFields(requiredFields, defaultTld, stackName, allowRotate) {
+    if (allowRotate === undefined) allowRotate = true;
     $fields.empty();
     requiredFields.forEach(function (f) {
       var inputType = f.isSecret ? 'password' : 'text';
@@ -115,7 +123,7 @@
             '<label>' + escapeHtml(f.key) + '</label>' +
             (f.isSecret
               ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
-                '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>'
+                (allowRotate ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>' : '')
               : '') +
           '</div>' +
           '<input type="' + inputType + '" class="stacksUI-installConfirm-input" value="' + escapeHtml(defaultValue) + '">' +
@@ -237,7 +245,17 @@
       }
       var preselectNetwork = editing ? (result.detectedNetworkKey || 'default') : result.defaultNetworkSetting;
       populateNetworkSelect(result.networks || [], preselectNetwork);
-      renderFields(result.requiredFields || [], result.defaultTld, displayName);
+      // Edit shows every var already in the stack's .env (so anything can
+      // be tweaked without dropping to View Raw), Rotate disabled since
+      // this is real live data, not a fresh install - see renderFields()'s
+      // own comment. Install still only shows the catalog's curated
+      // "required" fields - most of its other vars already have sensible
+      // defaults that don't need surfacing on every single install.
+      if (editing) {
+        renderFields(result.allFields || [], result.defaultTld, displayName, false);
+      } else {
+        renderFields(result.requiredFields || [], result.defaultTld, displayName, true);
+      }
       $exposePorts.prop('checked', !!result.exposePorts);
       // Gated on both the Settings > Reverse Proxy toggle AND this app
       // declaring support (result.reverseProxyEnabled combines both) -

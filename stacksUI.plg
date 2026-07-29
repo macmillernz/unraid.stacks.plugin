@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.28.2">
+<!ENTITY version   "2026.07.28.3">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "6f2cd83e398f1340061ea16e724735e2">
+<!ENTITY MD5       "c55c14b810ae0fdfdac6e827d3e5defd">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,16 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.28.3
+- Edit now shows every variable already in the stack's .env as an
+  editable field (with its .env comment shown as a hint, same as a
+  required field's message), not just the catalog's curated "required"
+  list - anything can be tweaked without dropping to View Raw. Secrets
+  still get "Show", but not "Rotate" here (auto-generating a fresh value
+  makes sense before a stack exists, not after - it would desync the
+  .env from whatever the running service already has configured).
+  Install is unchanged, still only prompting for the required fields.
+
 ###2026.07.28.2
 - Fixed a leftover real-domain example in a code comment (should never
   have been anything but a generic placeholder like "example.com").

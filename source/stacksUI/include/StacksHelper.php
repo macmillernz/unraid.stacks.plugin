@@ -925,6 +925,53 @@ function stacksUI_parse_required_fields($compose, $env, $vendorEnv = null) {
   return $result;
 }
 
+// Every var currently in $env, as an editable field list - unlike
+// stacksUI_parse_required_fields() above (which only surfaces vars the
+// catalog explicitly flagged as needing attention via a "changeme"
+// placeholder or compose's ":?"), this surfaces literally every
+// KEY=VALUE line already there, in file order, so the Edit dialog can
+// let a user tweak any of them without dropping to View Raw. Each
+// field's "message" hint comes from whatever comment lines immediately
+// precede it in the file (see stacksUI_parse_env_blocks()) - the same
+// contextual-hint convention required fields already use, just sourced
+// from the .env's own comments instead of a compose ":?" message. Also
+// appends any compose "${VAR:?msg}" var not yet present in $env at all
+// (same edge case parse_required_fields() handles) - still worth
+// surfacing even though there's no line for it yet.
+function stacksUI_all_env_fields($compose, $env) {
+  $secretKeywordRe = '/PASS|SECRET|KEY|TOKEN|PWD|AUTH/i';
+  $fields = [];
+
+  foreach (stacksUI_parse_env_blocks($env) as $block) {
+    $hintLines = [];
+    foreach (array_slice($block['lines'], 0, -1) as $line) {
+      if (preg_match('/^\s*#\s?(.*)$/', $line, $m) && trim($m[1]) !== '') {
+        $hintLines[] = trim($m[1]);
+      }
+    }
+    $fields[$block['key']] = [
+      'key' => $block['key'],
+      'defaultValue' => $block['value'],
+      'isSecret' => (bool)preg_match($secretKeywordRe, $block['key']),
+      'message' => $hintLines ? implode(' ', $hintLines) : null,
+    ];
+  }
+
+  if (preg_match_all('/\$\{([A-Za-z_][A-Za-z0-9_]*):\?([^}]*)\}/', (string)$compose, $matches, PREG_SET_ORDER)) {
+    foreach ($matches as $m) {
+      if (isset($fields[$m[1]])) continue; // already have a real line for it above
+      $fields[$m[1]] = [
+        'key' => $m[1],
+        'defaultValue' => '',
+        'isSecret' => (bool)preg_match($secretKeywordRe, $m[1]),
+        'message' => trim($m[2]),
+      ];
+    }
+  }
+
+  return array_values($fields);
+}
+
 // Finds every network name declared "external: true" at the compose's
 // top level - written to detect whatever name is actually present rather
 // than hardcoding "swag", though in practice this always resolves to
@@ -1145,6 +1192,7 @@ function stacksUI_prepare_edit($name) {
     'compose' => $compose,
     'env' => $env,
     'requiredFields' => stacksUI_parse_required_fields($compose, $env, $vendorEnv),
+    'allFields' => stacksUI_all_env_fields($compose, $env),
     'detectedNetworkKey' => $detected[0] ?? null,
     'networks' => stacksUI_list_docker_networks(),
     'defaultNetworkSetting' => $settings['defaultNetwork'],
