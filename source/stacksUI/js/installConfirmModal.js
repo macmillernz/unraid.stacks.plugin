@@ -121,16 +121,20 @@
         '<div class="stacksUI-field stacksUI-installConfirm-row" data-secret="' + (f.isSecret ? '1' : '0') + '">' +
           '<div class="stacksUI-field-label-row">' +
             '<label>' + escapeHtml(f.key) + '</label>' +
-            '<div class="stacksUI-field-label-actions">' +
-              (f.message ? '<button type="button" class="stacksUI-installConfirm-help" title="Show description">?</button>' : '') +
-              (f.isSecret
-                ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
-                  (allowRotate ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>' : '')
-                : '') +
-            '</div>' +
+            (f.isSecret
+              ? '<div class="stacksUI-field-label-actions">' +
+                  '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
+                  (allowRotate ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>' : '') +
+                '</div>'
+              : '') +
           '</div>' +
           '<input type="' + inputType + '" class="stacksUI-installConfirm-input" value="' + escapeHtml(defaultValue) + '">' +
-          (f.message ? '<div class="stacksUI-field-description" style="display:none">' + escapeHtml(f.message) + '</div>' : '') +
+          // Same hint element Unraid's own Settings pages use ("> text" in
+          // their markdown source renders to a plain <blockquote>) - a
+          // real <blockquote> here picks up that identical native styling
+          // for free, rather than a hand-rolled box trying to approximate
+          // it. Always shown, no hover/click gating - same as Settings.
+          (f.message ? '<blockquote>' + escapeHtml(f.message) + '</blockquote>' : '') +
         '</div>'
       );
       $row.data('key', f.key);
@@ -170,10 +174,6 @@
     });
     return values;
   }
-
-  $fields.on('click', '.stacksUI-installConfirm-help', function () {
-    $(this).closest('.stacksUI-installConfirm-row').find('.stacksUI-field-description').toggle();
-  });
 
   $fields.on('click', '.stacksUI-installConfirm-reveal', function () {
     var $btn = $(this);

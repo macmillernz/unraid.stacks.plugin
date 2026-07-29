@@ -216,36 +216,13 @@
 }
 .stacksUI-checkbox-row { display: flex; align-items: center; gap: 8px; }
 .stacksUI-checkbox-row input[type="checkbox"] { width: auto; margin: 0; }
-/* Groups the "?"/Show/Rotate buttons together on the right of a field's
-   label row, so .stacksUI-field-label-row's own space-between only has
-   to split two things (label, this cluster) rather than spreading 2-3
-   buttons out across the full row width. */
+/* Holds the Show/Rotate buttons on the right of a field's label row. */
 .stacksUI-field-label-actions { display: flex; align-items: center; gap: 6px; }
-/* A subtle "?" marker, not a real button - invisible until you hover the
-   field's name (or the marker itself/keyboard-focus it), matching the
-   understated hover-reveal hint icon convention used elsewhere in
-   Unraid's own native Settings pages, rather than a permanently-visible
-   button competing for attention on every single field. */
-.stacksUI-installConfirm-help {
-  appearance: none; border: none; padding: 0; flex: none; cursor: pointer;
-  width: 15px; height: 15px; border-radius: 50%; line-height: 15px;
-  font-size: 10px; text-align: center;
-  background: var(--alt-text-color); color: var(--background-color);
-  opacity: 0; transition: opacity 0.15s ease;
-}
-.stacksUI-field-label-row label:hover ~ .stacksUI-field-label-actions .stacksUI-installConfirm-help,
-.stacksUI-installConfirm-help:hover,
-.stacksUI-installConfirm-help:focus {
-  opacity: 1;
-}
-/* A field's description, shown only on demand via its "?" button -
-   boxed like Unraid's own native ">" hint blockquotes on the Settings
-   page (background/border, not just plain floating text) since a plain
-   .stacksUI-hint's negative top margin (meant to tuck a hint in close
-   under a <label>) overlapped the input box directly above it here. */
-.stacksUI-field-description {
-  margin-top: 6px; padding: 8px 10px;
-  border: 1px solid var(--border-color); border-radius: 4px;
-  background: var(--mild-background-color); color: var(--alt-text-color);
-  font-size: 11px; line-height: 1.4;
-}
+/* A field's description - a real <blockquote> (see installConfirmModal.js's
+   renderFields()), the same element Unraid's own Settings pages render
+   a "> text" hint as, so it picks up identical native styling here for
+   free instead of a hand-rolled approximation. Always shown, same as
+   Settings - just a small top margin so it doesn't hug the input box
+   directly above it (unlike .stacksUI-hint's negative margin, tuned for
+   sitting under a label instead, which overlapped the input here). */
+.stacksUI-installConfirm-row blockquote { margin: 6px 0 0; }
