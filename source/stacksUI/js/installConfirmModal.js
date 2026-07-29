@@ -121,13 +121,16 @@
         '<div class="stacksUI-field stacksUI-installConfirm-row" data-secret="' + (f.isSecret ? '1' : '0') + '">' +
           '<div class="stacksUI-field-label-row">' +
             '<label>' + escapeHtml(f.key) + '</label>' +
-            (f.isSecret
-              ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
-                (allowRotate ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>' : '')
-              : '') +
+            '<div class="stacksUI-field-label-actions">' +
+              (f.message ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-help" title="Show description">?</button>' : '') +
+              (f.isSecret
+                ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
+                  (allowRotate ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>' : '')
+                : '') +
+            '</div>' +
           '</div>' +
           '<input type="' + inputType + '" class="stacksUI-installConfirm-input" value="' + escapeHtml(defaultValue) + '">' +
-          (f.message ? '<p class="stacksUI-hint">' + escapeHtml(f.message) + '</p>' : '') +
+          (f.message ? '<div class="stacksUI-field-description" style="display:none">' + escapeHtml(f.message) + '</div>' : '') +
         '</div>'
       );
       $row.data('key', f.key);
@@ -167,6 +170,10 @@
     });
     return values;
   }
+
+  $fields.on('click', '.stacksUI-installConfirm-help', function () {
+    $(this).closest('.stacksUI-installConfirm-row').find('.stacksUI-field-description').toggle();
+  });
 
   $fields.on('click', '.stacksUI-installConfirm-reveal', function () {
     var $btn = $(this);
