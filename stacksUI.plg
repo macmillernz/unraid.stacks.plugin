@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.28.4">
+<!ENTITY version   "2026.07.28.5">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "c4b0c9aa4c0bf205feefae6e10273863">
+<!ENTITY MD5       "bc2b65f60d7e59c4c736c776cf7d84f4">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,13 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.28.5
+- Replaced the field description's "?" button with a subtle marker: no
+  longer a full always-visible button, it now stays invisible until you
+  hover the field's name (or focus/hover the marker itself), matching
+  the understated hover-reveal hint style used elsewhere in Unraid's own
+  Settings pages. Still shows the same boxed description on click.
+
 ###2026.07.28.4
 - Fixed a real visual bug: a field's description overlapped the input
   box directly above it (a shared ".stacksUI-hint" style's negative top

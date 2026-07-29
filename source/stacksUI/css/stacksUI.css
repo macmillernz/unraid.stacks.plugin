@@ -221,6 +221,23 @@
    to split two things (label, this cluster) rather than spreading 2-3
    buttons out across the full row width. */
 .stacksUI-field-label-actions { display: flex; align-items: center; gap: 6px; }
+/* A subtle "?" marker, not a real button - invisible until you hover the
+   field's name (or the marker itself/keyboard-focus it), matching the
+   understated hover-reveal hint icon convention used elsewhere in
+   Unraid's own native Settings pages, rather than a permanently-visible
+   button competing for attention on every single field. */
+.stacksUI-installConfirm-help {
+  appearance: none; border: none; padding: 0; flex: none; cursor: pointer;
+  width: 15px; height: 15px; border-radius: 50%; line-height: 15px;
+  font-size: 10px; text-align: center;
+  background: var(--alt-text-color); color: var(--background-color);
+  opacity: 0; transition: opacity 0.15s ease;
+}
+.stacksUI-field-label-row label:hover ~ .stacksUI-field-label-actions .stacksUI-installConfirm-help,
+.stacksUI-installConfirm-help:hover,
+.stacksUI-installConfirm-help:focus {
+  opacity: 1;
+}
 /* A field's description, shown only on demand via its "?" button -
    boxed like Unraid's own native ">" hint blockquotes on the Settings
    page (background/border, not just plain floating text) since a plain

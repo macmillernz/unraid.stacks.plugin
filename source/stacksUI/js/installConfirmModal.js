@@ -122,7 +122,7 @@
           '<div class="stacksUI-field-label-row">' +
             '<label>' + escapeHtml(f.key) + '</label>' +
             '<div class="stacksUI-field-label-actions">' +
-              (f.message ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-help" title="Show description">?</button>' : '') +
+              (f.message ? '<button type="button" class="stacksUI-installConfirm-help" title="Show description">?</button>' : '') +
               (f.isSecret
                 ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
                   (allowRotate ? '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-rotate">Rotate</button>' : '')
