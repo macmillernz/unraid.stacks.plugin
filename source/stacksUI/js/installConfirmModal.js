@@ -120,7 +120,7 @@
       var $row = $(
         '<div class="stacksUI-field stacksUI-installConfirm-row" data-secret="' + (f.isSecret ? '1' : '0') + '">' +
           '<div class="stacksUI-field-label-row">' +
-            '<label>' + escapeHtml(f.key) + '</label>' +
+            '<label' + (f.message ? ' class="stacksUI-help-label"' : '') + '>' + escapeHtml(f.key) + '</label>' +
             (f.isSecret
               ? '<div class="stacksUI-field-label-actions">' +
                   '<button type="button" class="stacksUI-btn stacksUI-btn-small stacksUI-installConfirm-reveal">Show</button>' +
@@ -129,12 +129,14 @@
               : '') +
           '</div>' +
           '<input type="' + inputType + '" class="stacksUI-installConfirm-input" value="' + escapeHtml(defaultValue) + '">' +
-          // Same hint element Unraid's own Settings pages use ("> text" in
-          // their markdown source renders to a plain <blockquote>) - a
-          // real <blockquote> here picks up that identical native styling
-          // for free, rather than a hand-rolled box trying to approximate
-          // it. Always shown, no hover/click gating - same as Settings.
-          (f.message ? '<blockquote>' + escapeHtml(f.message) + '</blockquote>' : '') +
+          // The real Unraid mechanism (found by reading
+          // dynamix/include/DefaultPageLayout/BodyInlineJS.php and
+          // Markdown.php on a live box), not an approximation: every
+          // native Settings hint is a <blockquote class="inline_help">,
+          // hidden by Unraid's own global CSS (.inline_help{display:none}
+          // in default-base.css) until its preceding term is clicked - see
+          // the click handler below and .stacksUI-help-label's cursor:help.
+          (f.message ? '<blockquote class="inline_help">' + escapeHtml(f.message) + '</blockquote>' : '') +
         '</div>'
       );
       $row.data('key', f.key);
@@ -174,6 +176,12 @@
     });
     return values;
   }
+
+  // Matches the real native mechanism exactly (see renderFields()'s own
+  // comment): click the term to slide-toggle its blockquote.
+  $fields.on('click', 'label.stacksUI-help-label', function () {
+    $(this).closest('.stacksUI-installConfirm-row').find('blockquote.inline_help').toggle('slow');
+  });
 
   $fields.on('click', '.stacksUI-installConfirm-reveal', function () {
     var $btn = $(this);

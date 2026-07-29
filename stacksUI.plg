@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.28.6">
+<!ENTITY version   "2026.07.28.7">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "6d8494de54cf1972799432f6cc90e4be">
+<!ENTITY MD5       "4c1227d08239a86d42d158889e0c4941">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,15 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.28.7
+- Field descriptions now use the actual native Unraid mechanism (found
+  by reading dynamix's own BodyInlineJS.php/Markdown.php on a live box),
+  not an approximation: the field's name gets a help cursor and toggles
+  its description on click, same as every native Settings page's own
+  "&gt; text" hints - hidden until clicked, boxed in the same blue-bordered
+  style, using Unraid's own global CSS class for both rather than
+  anything custom.
+
 ###2026.07.28.6
 - Field descriptions now use the exact same hint element the Settings
   page itself uses (a plain blockquote, same as its "&gt; text" markdown

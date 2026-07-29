@@ -218,11 +218,10 @@
 .stacksUI-checkbox-row input[type="checkbox"] { width: auto; margin: 0; }
 /* Holds the Show/Rotate buttons on the right of a field's label row. */
 .stacksUI-field-label-actions { display: flex; align-items: center; gap: 6px; }
-/* A field's description - a real <blockquote> (see installConfirmModal.js's
-   renderFields()), the same element Unraid's own Settings pages render
-   a "> text" hint as, so it picks up identical native styling here for
-   free instead of a hand-rolled approximation. Always shown, same as
-   Settings - just a small top margin so it doesn't hug the input box
-   directly above it (unlike .stacksUI-hint's negative margin, tuned for
-   sitting under a label instead, which overlapped the input here). */
-.stacksUI-installConfirm-row blockquote { margin: 6px 0 0; }
+/* Only the cursor changes here - hiding the blockquote until clicked
+   (.inline_help) and its box styling both already come from Unraid's own
+   global default-base.css (the exact mechanism its Settings pages use for
+   "> text" hints, confirmed by reading BodyInlineJS.php/Markdown.php on a
+   live box), not anything of ours to reproduce. See renderFields()'s own
+   comment and the click handler bound to this class. */
+.stacksUI-help-label { cursor: help; }
