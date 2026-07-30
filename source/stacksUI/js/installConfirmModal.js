@@ -114,7 +114,13 @@
     requiredFields.forEach(function (f) {
       var inputType = f.isSecret ? 'password' : 'text';
       var defaultValue = f.defaultValue || '';
-      if (!defaultValue && !f.isSecret && defaultTld && /HOST|DOMAIN|URL/i.test(f.key)) {
+      // A key that's exactly "URL" (SWAG's own root-domain variable is
+      // the real example - confirmed via linuxserver.io's own docs) means
+      // the box's own root domain (e.g. "example.com"), not a per-app
+      // subdomain - "<stackname>.<tld>" would be a plausible-looking but
+      // wrong suggestion here, so this one's deliberately left for the
+      // user to type themselves rather than guessed.
+      if (!defaultValue && !f.isSecret && defaultTld && /HOST|DOMAIN|URL/i.test(f.key) && f.key.toUpperCase() !== 'URL') {
         defaultValue = suggestTldValue(f.key, stackName, defaultTld);
       }
       var $row = $(

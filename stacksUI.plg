@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.28.7">
+<!ENTITY version   "2026.07.29.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "4c1227d08239a86d42d158889e0c4941">
+<!ENTITY MD5       "2ee4e1444ebb9382951edb95c9be9d3f">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,13 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.07.29.1
+- Fixed the Default TLD auto-suggestion incorrectly offering a scheme-
+  prefixed subdomain guess for a required field named exactly "URL"
+  (e.g. SWAG's own root-domain variable) - that shape of variable means
+  the box's own root domain, not a per-app subdomain, so it's now left
+  blank for the user to type deliberately instead of guessed wrong.
+
 ###2026.07.28.7
 - Field descriptions now use the actual native Unraid mechanism (found
   by reading dynamix's own BodyInlineJS.php/Markdown.php on a live box),
