@@ -972,6 +972,39 @@ function stacksUI_all_env_fields($compose, $env) {
   return array_values($fields);
 }
 
+// Same "every var, not just required ones" idea as stacksUI_all_env_fields()
+// above, but for Install rather than Edit - backs the same field list in
+// the dialog for both, just computed differently under the hood. The
+// difference matters: for Edit, $env is the stack's own live file, so a
+// var's "current value" is genuinely its current value. For Install,
+// $env is still the catalog's vendor TEMPLATE - a var stacksUI_parse_
+// required_fields() would flag (a "changeme" placeholder, or compose's
+// ":?" with no line at all) still needs its existing blank/generated-
+// secret pre-fill logic, or the dialog would show the literal
+// "changeme-..." template text as if it were a real value to keep.
+// Every other (non-required) var's real template default is left as-is,
+// same as stacksUI_all_env_fields() already does.
+function stacksUI_all_install_fields($compose, $env) {
+  $requiredByKey = [];
+  foreach (stacksUI_parse_required_fields($compose, $env) as $r) {
+    $requiredByKey[$r['key']] = $r;
+  }
+
+  $fields = stacksUI_all_env_fields($compose, $env);
+  foreach ($fields as &$f) {
+    if (!isset($requiredByKey[$f['key']])) continue;
+    $f['defaultValue'] = $requiredByKey[$f['key']]['defaultValue'];
+    // Prefers the required-field message (usually a compose ":?" hint,
+    // more actionable) when there is one, otherwise keeps whatever
+    // comment-derived hint stacksUI_all_env_fields() already found.
+    if (!empty($requiredByKey[$f['key']]['message'])) {
+      $f['message'] = $requiredByKey[$f['key']]['message'];
+    }
+  }
+  unset($f);
+  return $fields;
+}
+
 // Finds every network name declared "external: true" at the compose's
 // top level - written to detect whatever name is actually present rather
 // than hardcoding "swag", though in practice this always resolves to
@@ -1138,7 +1171,7 @@ function stacksUI_prepare_install($compose, $env, $reverseProxyMeta = null) {
   $detected = stacksUI_detect_external_networks($compose);
   $settings = stacksUI_settings();
   return [
-    'requiredFields' => stacksUI_parse_required_fields($compose, $env),
+    'allFields' => stacksUI_all_install_fields($compose, $env),
     'detectedNetworkKey' => $detected[0] ?? null,
     'networks' => stacksUI_list_docker_networks(),
     'defaultNetworkSetting' => $settings['defaultNetwork'],
@@ -1164,7 +1197,6 @@ function stacksUI_prepare_edit($name) {
   $dir = stacksUI_stack_dir($name);
   $compose = file_exists("$dir/docker-compose.yml") ? file_get_contents("$dir/docker-compose.yml") : '';
   $env = file_exists("$dir/.env") ? file_get_contents("$dir/.env") : '';
-  $vendorEnv = file_exists(stacksUI_vendor_env_path($name)) ? file_get_contents(stacksUI_vendor_env_path($name)) : null;
 
   // Only a stack installed via the App Store has a catalogSlug to look
   // this up by - re-fetched fresh from the catalog (same pattern as
@@ -1191,7 +1223,6 @@ function stacksUI_prepare_edit($name) {
   return [
     'compose' => $compose,
     'env' => $env,
-    'requiredFields' => stacksUI_parse_required_fields($compose, $env, $vendorEnv),
     'allFields' => stacksUI_all_env_fields($compose, $env),
     'detectedNetworkKey' => $detected[0] ?? null,
     'networks' => stacksUI_list_docker_networks(),

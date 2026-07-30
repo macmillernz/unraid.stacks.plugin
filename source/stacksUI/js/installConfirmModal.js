@@ -266,17 +266,14 @@
       }
       var preselectNetwork = editing ? (result.detectedNetworkKey || 'default') : result.defaultNetworkSetting;
       populateNetworkSelect(result.networks || [], preselectNetwork);
-      // Edit shows every var already in the stack's .env (so anything can
-      // be tweaked without dropping to View Raw), Rotate disabled since
-      // this is real live data, not a fresh install - see renderFields()'s
-      // own comment. Install still only shows the catalog's curated
-      // "required" fields - most of its other vars already have sensible
-      // defaults that don't need surfacing on every single install.
-      if (editing) {
-        renderFields(result.allFields || [], result.defaultTld, displayName, false);
-      } else {
-        renderFields(result.requiredFields || [], result.defaultTld, displayName, true);
-      }
+      // Both Install and Edit now show every var (not just "required"
+      // ones) - prepare_install()/prepare_edit() already sanitize a
+      // required-but-unfilled var's default appropriately for whichever
+      // mode this is (blank/generated-secret on Install so nobody adopts
+      // the catalog's literal "changeme..." template text, the real live
+      // value on Edit). Rotate stays disabled for Edit only - see
+      // renderFields()'s own comment on why.
+      renderFields(result.allFields || [], result.defaultTld, displayName, !editing);
       $exposePorts.prop('checked', !!result.exposePorts);
       // Gated on both the Settings > Reverse Proxy toggle AND this app
       // declaring support (result.reverseProxyEnabled combines both) -
