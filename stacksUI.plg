@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.07.29.2">
+<!ENTITY version   "2026.08.06.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "d651d8f6ffe565f710fd861f8ea1d4bf">
+<!ENTITY MD5       "f0c253a6489e89ba1c639930ebb79938">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,21 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.08.06.1
+- CRITICAL FIX: uninstalling the plugin didn't actually remove the Stacks/
+  Stacks App Store/Stacks UI Settings tabs or the Dashboard tile. Root
+  cause: this package's filename embeds its version, so every version
+  bump is a different Slackware package identity - upgradepkg's "install
+  new package only" mode never removes a differently-named prior
+  package, so every upgrade over this plugin's history left the previous
+  version permanently registered alongside the new one. Uninstall only
+  ever removed the ONE package matching whatever version happened to be
+  current at that moment, leaving every other still-registered version's
+  files (and the tabs they produce) untouched. Fixed on both sides: a new
+  pre-install step now clears out any previously-registered stacksUI-*
+  package before installing, and uninstall now removes every stacksUI-*
+  package it finds, not just the current one.
+
 ###2026.07.29.2
 - Install now shows every catalog-declared env var as an editable field
   (previously only the curated "required" ones), matching what Edit
@@ -509,6 +524,26 @@ can check for updates.
   entirely (`compose ps` needs `--all` to include them).
   </CHANGES>
 
+  <!-- Pre-install cleanup: our package filename embeds the version
+       (stacksUI-<version>.txz), so every version bump is a DIFFERENT
+       Slackware package identity as far as /var/log/packages/ is
+       concerned - confirmed real: upgradepkg's own "install new package
+       only" mode does not remove a differently-named prior package, so
+       every upgrade left the previous version's package permanently
+       registered (its files still get overwritten on disk by the new
+       install, but the stale registration lingers). Runs BEFORE the
+       real install below so any previously-registered stacksUI-*
+       package is gone first - doing this after would instead delete
+       the files this same install just wrote, since removepkg deletes
+       by path regardless of which package currently "owns" it. -->
+  <FILE Run="/bin/bash">
+    <INLINE>
+for pkg in $(ls /var/log/packages/ 2&gt;/dev/null | grep '^stacksUI-'); do
+  removepkg "$pkg" || true
+done
+    </INLINE>
+  </FILE>
+
   <!-- Plugin code, packaged as a single txz. -->
   <FILE Name="&configdir;/packages/stacksUI-&version;.txz" Run="upgradepkg --install-new">
     <URL>&SRC;</URL>
@@ -554,7 +589,16 @@ echo "Stacks UI installed. Visit the Stacks tab to get started."
   <!-- Uninstall: restore the Docker tab, remove the go-file hook, remove
        the packaged code. Deliberately leaves &configdir; (each stack's
        docker-compose.yml/.env/meta.json) in place so a reinstall doesn't
-       lose stacks - remove manually if a clean wipe is wanted. -->
+       lose stacks - remove manually if a clean wipe is wanted.
+       Real bug fixed 2026-08-06: `removepkg stacksUI-&version;` only
+       ever targeted the ONE package name matching whatever version was
+       CURRENT at uninstall time - on a box that had accumulated stale
+       differently-versioned stacksUI-* package registrations (see the
+       pre-install cleanup step above), that left every other version's
+       tracked files (Stacks.page/AppStore.page/StacksUISettings.page/
+       DashboardTile.page etc.) on disk untouched, so the tabs never
+       actually disappeared after "removing" the plugin. Now removes
+       every stacksUI-* package found, not just the current one. -->
   <FILE Run="/bin/bash" Method="remove">
     <INLINE>
 "&emhttp;/scripts/restore_docker_menu.sh" || true
@@ -565,7 +609,9 @@ if [ -f "$GO_FILE" ]; then
   sed -i '/# --- stacksUI boot-hooks: begin ---/,/# --- stacksUI boot-hooks: end ---/d' "$GO_FILE"
 fi
 
-removepkg stacksUI-&version; || true
+for pkg in $(ls /var/log/packages/ 2&gt;/dev/null | grep '^stacksUI-'); do
+  removepkg "$pkg" || true
+done
     </INLINE>
   </FILE>
 
