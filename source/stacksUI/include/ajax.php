@@ -45,21 +45,6 @@ function stacksUI_decode_extra_files($json) {
   return $files;
 }
 
-// Decodes the install confirmation dialog's required-field values (secret
-// and plain alike - a JSON object of {KEY: value}) into a plain assoc
-// array, same silently-drop-anything-malformed approach as
-// stacksUI_decode_extra_files() above.
-function stacksUI_decode_field_values($json) {
-  $decoded = json_decode($json ?? '{}', true);
-  $values = [];
-  if (is_array($decoded)) {
-    foreach ($decoded as $key => $value) {
-      if (is_string($key) && is_string($value)) $values[$key] = $value;
-    }
-  }
-  return $values;
-}
-
 function stacksUI_fail($e) {
   if ($e instanceof InvalidStackNameException) {
     http_response_code(400);
@@ -79,18 +64,6 @@ try {
       echo json_encode(stacksUI_list_stacks());
       break;
 
-    case 'check_updates':
-      echo json_encode(stacksUI_check_updates());
-      break;
-
-    case 'preview_update':
-      echo json_encode(stacksUI_preview_update($_REQUEST['name'] ?? ''));
-      break;
-
-    case 'apply_update':
-      echo json_encode(stacksUI_apply_update($_POST['name'] ?? ''));
-      break;
-
     case 'settings':
       echo json_encode(stacksUI_settings());
       break;
@@ -99,15 +72,15 @@ try {
       // Built from only the keys actually submitted (not a fixed list of
       // fields defaulted to '') so this one action can serve both the
       // Stacks-tab settings modal (stacksDir/dataRoot/backupPath) and the
-      // Settings-page visibility toggles (hideDocker/hideApps/
-      // enableAppStore) without either caller clobbering the other's
-      // fields back to blank/false - stacksUI_save_settings() falls back
-      // to the current value for anything not present here.
+      // Settings-page visibility toggles (hideDocker/hideApps) without
+      // either caller clobbering the other's fields back to blank/false -
+      // stacksUI_save_settings() falls back to the current value for
+      // anything not present here.
       $payload = [];
-      foreach (['stacksDir', 'dataRoot', 'backupPath', 'defaultNetwork', 'defaultTld'] as $key) {
+      foreach (['stacksDir', 'dataRoot', 'backupPath'] as $key) {
         if (isset($_POST[$key])) $payload[$key] = trim($_POST[$key]);
       }
-      foreach (['hideDocker', 'hideApps', 'enableAppStore', 'reverseProxy'] as $key) {
+      foreach (['hideDocker', 'hideApps'] as $key) {
         if (isset($_POST[$key])) $payload[$key] = $_POST[$key] === '1';
       }
       echo json_encode(stacksUI_save_settings($payload));
@@ -141,21 +114,8 @@ try {
       $meta = ['logoUrl' => $logoUrl !== '' ? $logoUrl : null];
       if ($action === 'create') {
         $meta['createdAt'] = date('c');
-        // Only present when this stack was created via App Store Install
-        // (see stackModal.js/appStore.js) - records which catalog app it
-        // came from and snapshots the catalog's own compose/env as
-        // fetched (not what the user may have edited in the wizard), so
-        // a later "check for updates" has a true baseline to diff
-        // against. Never set on a manual New Stack or a real Edit.
-        if (!empty($_POST['catalogSlug'])) {
-          $meta['catalogSlug'] = $_POST['catalogSlug'];
-          $meta['catalogVersion'] = $_POST['catalogVersion'] ?? null;
-        }
       }
       $backupError = stacksUI_write_stack($name, $compose, $env, $meta, $extraFiles);
-      if ($action === 'create' && !empty($_POST['catalogSlug'])) {
-        stacksUI_write_vendor_snapshot($name, $_POST['vendorCompose'] ?? '', $_POST['vendorEnv'] ?? '');
-      }
       $response = ['name' => $name];
       if ($backupError) {
         $response['backupWarning'] = "Stack saved, but backup failed: $backupError";
@@ -201,49 +161,6 @@ try {
     case 'logs':
       $tail = isset($_REQUEST['tail']) ? (int)$_REQUEST['tail'] : 200;
       echo json_encode(['logs' => stacksUI_compose_logs($_REQUEST['name'] ?? '', $tail)]);
-      break;
-
-    case 'store_list':
-      echo json_encode(stacksUI_appstore_list());
-      break;
-
-    case 'store_get':
-      echo json_encode(stacksUI_appstore_get($_REQUEST['slug'] ?? ''));
-      break;
-
-    case 'list_networks':
-      echo json_encode(['networks' => stacksUI_list_docker_networks()]);
-      break;
-
-    case 'prepare_install':
-      $reverseProxyMeta = json_decode($_POST['reverseProxyMeta'] ?? 'null', true);
-      echo json_encode(stacksUI_prepare_install(
-        $_POST['compose'] ?? '',
-        $_POST['env'] ?? '',
-        is_array($reverseProxyMeta) ? $reverseProxyMeta : null
-      ));
-      break;
-
-    case 'prepare_edit':
-      echo json_encode(stacksUI_prepare_edit($_REQUEST['name'] ?? ''));
-      break;
-
-    case 'generate_secret':
-      echo json_encode(['value' => stacksUI_generate_secret($_REQUEST['key'] ?? null)]);
-      break;
-
-    case 'finalize_install':
-      $fieldValues = stacksUI_decode_field_values($_POST['fieldValues'] ?? '{}');
-      $reverseProxyMeta = json_decode($_POST['reverseProxyMeta'] ?? 'null', true);
-      echo json_encode(stacksUI_finalize_install(
-        $_POST['vendorCompose'] ?? '',
-        $_POST['vendorEnv'] ?? '',
-        $_POST['networkChoice'] ?? 'default',
-        $fieldValues,
-        ($_POST['exposePorts'] ?? '1') === '1',
-        is_array($reverseProxyMeta) ? $reverseProxyMeta : null,
-        $_POST['subdomain'] ?? ''
-      ));
       break;
 
     default:

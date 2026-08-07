@@ -1,13 +1,10 @@
-// Create/edit stack wizard, shared by Stacks.page (New/Edit) and
-// AppStore.page (Install) - both include the same modal markup
-// (include/stack_modal.php) and load this script. Exposes
+// Create/edit stack wizard, the only way to create or change a stack now
+// that the App Store/catalog is gone - opened via
 // window.StacksUIModal.open(stack, opts):
 //   stack: null for a blank New Stack, or {name, meta:{logoUrl}, compose, env}
-//          to pre-fill (an installed stack for Edit, or an app-store
-//          catalog entry for Install - both look the same to this modal).
+//          to pre-fill (a real Edit).
 //   opts.editing: true for the real "Edit Stack" flow (name field locked,
-//          PUT/update on save); false/omitted means create, even if a
-//          name/compose/env are pre-filled (App Store Install).
+//          PUT/update on save); false/omitted means create.
 //   opts.onSaved(result): called after a successful save, once the modal
 //          has already hidden itself.
 (function ($) {
@@ -40,17 +37,6 @@
   var onSaved = function () {};
   var extraFiles = []; // [{name, content}] - additional files alongside compose/.env
 
-  // Set only when opened from an App Store Install (see opts.catalogSlug
-  // etc. in open()) - lets the create action record which catalog app
-  // this stack came from, and snapshot the catalog's own compose/env
-  // *before* the user edits anything (e.g. filling in required secrets),
-  // so a later "check for updates" has a true baseline to diff against.
-  // Always null/empty for a blank New Stack or a real Edit.
-  var catalogSlug = null;
-  var catalogVersion = null;
-  var vendorCompose = '';
-  var vendorEnv = '';
-
   function escapeHtml(s) {
     return $('<div>').text(s == null ? '' : s).html();
   }
@@ -73,6 +59,103 @@
     renderExtraFiles();
   });
 
+  // --- Syntax highlighting -------------------------------------------------
+  // Lightweight, dependency-free (no CodeMirror/Prism vendored in) - a
+  // textarea whose own text is made transparent (but keeps a visible
+  // caret + native selection), stacked exactly on top of a <pre><code>
+  // showing the same text with <span class="tok-..."> coloring, kept in
+  // sync on every keystroke/scroll. Not a real YAML/dotenv parser - a
+  // single left-to-right character scan per line handling the shapes
+  // that actually show up in a docker-compose.yml/.env (comments,
+  // quoted strings, "${VAR}" interpolation, "key:"/"KEY=" prefixes) -
+  // good enough for coloring, not meant to validate anything (Verify
+  // Syntax below still does that for real, via `docker compose config`).
+
+  // Scans a value/rest-of-line for a trailing "#comment" (only when the
+  // "#" is at the start or preceded by whitespace, and not inside an
+  // open quote - doesn't handle a literal unquoted "#" mid-value, but
+  // that's rare in a compose/env file and this is a cosmetic feature,
+  // not a parser), quoted strings, and "${...}" interpolation. Returns
+  // already-HTML-escaped markup.
+  function highlightValue(text) {
+    var out = '';
+    var i = 0;
+    var n = text.length;
+    while (i < n) {
+      var ch = text[i];
+      if (ch === '#' && (i === 0 || /\s/.test(text[i - 1]))) {
+        out += '<span class="tok-comment">' + escapeHtml(text.slice(i)) + '</span>';
+        break;
+      }
+      if (ch === '"' || ch === "'") {
+        var end = text.indexOf(ch, i + 1);
+        if (end === -1) end = n - 1;
+        out += '<span class="tok-string">' + escapeHtml(text.slice(i, end + 1)) + '</span>';
+        i = end + 1;
+        continue;
+      }
+      if (ch === '$' && text[i + 1] === '{') {
+        var close = text.indexOf('}', i + 2);
+        if (close === -1) { out += escapeHtml(text.slice(i)); break; }
+        out += '<span class="tok-var">' + escapeHtml(text.slice(i, close + 1)) + '</span>';
+        i = close + 1;
+        continue;
+      }
+      var start = i;
+      while (i < n && text[i] !== '#' && text[i] !== '"' && text[i] !== "'" && !(text[i] === '$' && text[i + 1] === '{')) i++;
+      if (i === start) i++; // never loop forever on an unmatched leading char
+      out += escapeHtml(text.slice(start, i));
+    }
+    return out;
+  }
+
+  function highlightYamlLine(line) {
+    var commentMatch = line.match(/^(\s*)(#.*)$/);
+    if (commentMatch) {
+      return escapeHtml(commentMatch[1]) + '<span class="tok-comment">' + escapeHtml(commentMatch[2]) + '</span>';
+    }
+    // Leading indent + any number of "- " list markers + an optional
+    // "key:" - covers plain "key: value", "  - key: value" (list of
+    // maps), and "  - value"/"  -" (plain list item) alike.
+    var m = line.match(/^(\s*)((?:-\s+)*)([A-Za-z_][\w.-]*)(:)(.*)$/);
+    if (m) {
+      return escapeHtml(m[1]) +
+        (m[2] ? '<span class="tok-punct">' + escapeHtml(m[2]) + '</span>' : '') +
+        '<span class="tok-key">' + escapeHtml(m[3]) + '</span><span class="tok-punct">:</span>' +
+        highlightValue(m[5]);
+    }
+    var dashOnly = line.match(/^(\s*)((?:-\s+)+)(.*)$/);
+    if (dashOnly) {
+      return escapeHtml(dashOnly[1]) + '<span class="tok-punct">' + escapeHtml(dashOnly[2]) + '</span>' + highlightValue(dashOnly[3]);
+    }
+    var indentMatch = line.match(/^(\s*)/);
+    return escapeHtml(indentMatch[1]) + highlightValue(line.slice(indentMatch[1].length));
+  }
+
+  function highlightEnvLine(line) {
+    var commentMatch = line.match(/^(\s*)(#.*)$/);
+    if (commentMatch) {
+      return escapeHtml(commentMatch[1]) + '<span class="tok-comment">' + escapeHtml(commentMatch[2]) + '</span>';
+    }
+    var m = line.match(/^([A-Za-z_][A-Za-z0-9_]*)(=)(.*)$/);
+    if (!m) return escapeHtml(line);
+    return '<span class="tok-key">' + escapeHtml(m[1]) + '</span><span class="tok-punct">=</span>' + highlightValue(m[3]);
+  }
+
+  function highlightText(text, mode) {
+    var fn = mode === 'env' ? highlightEnvLine : highlightYamlLine;
+    // A trailing blank line's <code> content needs a real newline to
+    // keep the highlight layer's line count/height matched to the
+    // textarea's own - .join("\n") on split("\n") round-trips this
+    // correctly either way.
+    return text.split('\n').map(fn).join('\n');
+  }
+
+  function renderHighlight($textarea, mode) {
+    var $code = $textarea.closest('.stacksUI-editor-body').find('.stacksUI-editor-highlight code');
+    $code.html(highlightText($textarea.val(), mode));
+  }
+
   // --- Editor gutter (line numbers) for the compose/env textareas ---
   function syncGutter($textarea) {
     var $gutter = $textarea.closest('.stacksUI-editor').find('.stacksUI-editor-gutter');
@@ -84,12 +167,20 @@
 
   function initEditor($textarea) {
     var $wrap = $textarea.closest('.stacksUI-editor');
+    var mode = $wrap.attr('data-mode');
     var rows = parseInt($wrap.attr('data-rows'), 10) || 10;
     $wrap.css('height', (rows * 18 + 16) + 'px');
     syncGutter($textarea);
-    $textarea.off('.stacksUIEditor').on('input.stacksUIEditor', function () { syncGutter($textarea); });
+    renderHighlight($textarea, mode);
+    $textarea.off('.stacksUIEditor').on('input.stacksUIEditor', function () {
+      syncGutter($textarea);
+      renderHighlight($textarea, mode);
+    });
     $textarea.on('scroll.stacksUIEditor', function () {
       $wrap.find('.stacksUI-editor-gutter').scrollTop($textarea.scrollTop());
+      var $highlight = $wrap.find('.stacksUI-editor-highlight');
+      $highlight.scrollTop($textarea.scrollTop());
+      $highlight.scrollLeft($textarea.scrollLeft());
     });
     $textarea.on('keydown.stacksUIEditor', function (e) {
       if (e.key !== 'Tab') return;
@@ -100,14 +191,14 @@
       $textarea.val(val.slice(0, start) + '  ' + val.slice(end));
       el.selectionStart = el.selectionEnd = start + 2;
       syncGutter($textarea);
+      renderHighlight($textarea, mode);
     });
   }
 
   // For a brand new stack, seeds .env with a DATA_ROOT suggestion based on
   // the configured default data root + the stack name typed so far - kept
   // in sync as the name changes, but only while the user hasn't touched
-  // .env themselves (envTemplateDirty), so we never clobber a real edit
-  // or pre-filled App Store content.
+  // .env themselves (envTemplateDirty), so we never clobber a real edit.
   function envTemplate(stackName) {
     return '# Recommended: Add or replace your volumes with "${DATA_ROOT}/..."\n' +
       'DATA_ROOT=' + dataRoot + '/' + (stackName || '');
@@ -117,6 +208,7 @@
     if (editingName || envTemplateDirty) return;
     $fieldEnv.val(envTemplate($fieldName.val().trim()));
     syncGutter($fieldEnv);
+    renderHighlight($fieldEnv, 'env');
   }
 
   function open(stack, opts) {
@@ -124,8 +216,8 @@
     var editing = !!opts.editing;
     editingName = editing ? stack.name : null;
     onSaved = opts.onSaved || function () {};
-    // Pre-filled content (App Store Install, or a real Edit) shouldn't be
-    // clobbered by the DATA_ROOT auto-template as the name field is typed.
+    // Pre-filled content (a real Edit) shouldn't be clobbered by the
+    // DATA_ROOT auto-template as the name field is typed.
     envTemplateDirty = editing || !!(stack && stack.env);
     $modalTitle.text(editing ? 'Edit Stack: ' + editingName : 'New Stack');
     $fieldName.val((stack && stack.name) || '').prop('disabled', editing);
@@ -134,10 +226,6 @@
     $fieldEnv.val((stack && stack.env) || (editing ? '' : envTemplate('')));
     extraFiles = (stack && stack.extraFiles) ? stack.extraFiles.slice() : [];
     renderExtraFiles();
-    catalogSlug = opts.catalogSlug || null;
-    catalogVersion = opts.catalogVersion || null;
-    vendorCompose = opts.vendorCompose || '';
-    vendorEnv = opts.vendorEnv || '';
     $modalError.hide().text('');
     $modalValidation.hide().removeClass('stacksUI-validation-ok stacksUI-validation-fail').text('');
     $modal.show();
@@ -167,25 +255,26 @@
     });
   });
 
-  function readFileInto($textarea, file) {
+  function readFileInto($textarea, file, mode) {
     if (!file) return;
     var reader = new FileReader();
     reader.onload = function () {
       $textarea.val(reader.result);
       syncGutter($textarea);
+      renderHighlight($textarea, mode);
     };
     reader.readAsText(file);
   }
 
   $('#stacksUI-upload-compose-btn').on('click', function () { $('#stacksUI-upload-compose').trigger('click'); });
   $('#stacksUI-upload-compose').on('change', function () {
-    readFileInto($fieldCompose, this.files[0]);
+    readFileInto($fieldCompose, this.files[0], 'yaml');
     $(this).val('');
   });
 
   $('#stacksUI-upload-env-btn').on('click', function () { $('#stacksUI-upload-env').trigger('click'); });
   $('#stacksUI-upload-env').on('change', function () {
-    readFileInto($fieldEnv, this.files[0]);
+    readFileInto($fieldEnv, this.files[0], 'env');
     $(this).val('');
   });
 
@@ -225,15 +314,6 @@
       logoUrl: $fieldLogo.val().trim(),
       extraFiles: JSON.stringify(extraFiles),
     };
-    // Only ever sent on create, and only when opened from an App Store
-    // Install - never on a manual New Stack or a real Edit, so an edit
-    // can never accidentally (re)associate a stack with a catalog app.
-    if (action === 'create' && catalogSlug) {
-      payload.catalogSlug = catalogSlug;
-      payload.catalogVersion = catalogVersion;
-      payload.vendorCompose = vendorCompose;
-      payload.vendorEnv = vendorEnv;
-    }
     post(action, payload).done(function (result) {
       $modal.hide();
       onSaved(result);

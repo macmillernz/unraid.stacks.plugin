@@ -36,26 +36,6 @@ _(Backup path)_ (optional):
 
 > If set, a copy of a stack's docker-compose.yml/.env/meta.json is mirrored here after every create/edit. Leave blank to disable.
 
-_(Default network)_:
-: <select id="stacksUI-settings-defaultnetwork">
-  <option value="default">Default</option>
-  </select>
-
-> Pre-selects the network dropdown shown when installing an app from the App Store. "Default" means no external network - each stack gets compose's own implicit per-project network. Populated from the docker networks that actually exist on this box.
-
-_(Default TLD)_ (optional):
-: <input type="text" id="stacksUI-settings-defaulttld" placeholder="e.g. example.com">
-
-> Used to suggest a hostname/domain for install fields that need one (e.g. a BASE_URL or HOST setting) - "&lt;stack name&gt;.&lt;this&gt;" instead of leaving it blank. Leave empty to suggest nothing.
-
-_(Reverse Proxy)_:
-: <select class='narrow' id="stacksUI-settings-reverseproxy">
-  <option value="1">Yes</option>
-  <option value="0">No</option>
-  </select>
-
-> When enabled, the Install/Edit dialog prompts for a Subdomain (defaulting to "&lt;stack name&gt;.&lt;Default TLD&gt;") for any catalog app that declares reverse-proxy support - it's applied to that app's trusted-domain/hostname/trusted-proxy variables automatically. Apps that don't declare support are unaffected either way.
-
 _(Hide Docker tab)_:
 : <select class='narrow' id="stacksUI-toggle-hideDocker">
   <option value="1">Yes</option>
@@ -70,15 +50,9 @@ _(Hide Apps tab)_:
   <option value="0">No</option>
   </select>
 
-> Hides Community Applications' "Apps" tab, since the Stacks App Store covers app installs instead.
+> Hides Community Applications' "Apps" tab.
 
-_(Enable Stacks App Store tab)_:
-: <select class='narrow' id="stacksUI-toggle-enableAppStore">
-  <option value="1">Yes</option>
-  <option value="0">No</option>
-  </select>
-
-> Shows or hides stacksUI's own "Stacks App Store" tab. These three toggles take effect immediately, but a full page reload (not just clicking between tabs) is needed to see a tab appear or disappear from the top nav bar.
+> Both toggles take effect immediately, but a full page reload (not just clicking between tabs) is needed to see a tab appear or disappear from the top nav bar.
 
 <p id="stacksUI-settings-page-error" class="stacksUI-error" style="display:none"></p>
 

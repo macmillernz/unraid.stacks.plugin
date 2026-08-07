@@ -90,8 +90,6 @@
 .stacksUI-badge-paused { background: var(--gray-600); }
 .stacksUI-badge-unknown { background: var(--gray-600); }
 
-.stacksUI-action-update { background: var(--orange-500); color: var(--white); border-color: var(--orange-500); }
-
 .stacksUI-autostart-label {
   display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--alt-text-color);
   cursor: pointer; white-space: nowrap;
@@ -146,15 +144,21 @@
 .stacksUI-validation-fail { background: var(--red-100); color: var(--red-900); border: 1px solid var(--red-500); }
 .stacksUI-logs { max-height: 50vh; overflow: auto; background: #1e1e1e; color: #ddd; padding: 10px; border-radius: 4px; }
 
-/* Editor (compose/env textareas): line-number gutter, dark code-editor
-   look (deliberately theme-independent, see file header). The fixed
-   height lives on the .stacksUI-editor container itself (set via JS
-   from data-rows) - both the gutter and the textarea fill it at 100%
-   and scroll internally, so a gutter with more line numbers than fit on
-   screen can't stretch the container taller than the textarea (that
-   mismatch used to leave a block of blank space below the textarea's
-   own scrollbar whenever pasted content had more lines than the visible
-   area). */
+/* Editor (compose/env textareas): line-number gutter + a syntax-
+   highlighted overlay, dark code-editor look (deliberately theme-
+   independent, see file header). The fixed height lives on the
+   .stacksUI-editor container itself (set via JS from data-rows) - the
+   gutter, highlight layer, and textarea all fill it at 100% and scroll
+   internally/in sync, so content taller than the visible area can't
+   stretch the container (that mismatch used to leave a block of blank
+   space below the textarea's own scrollbar whenever pasted content had
+   more lines than fit on screen).
+
+   Highlighting technique (see js/stackModal.js's own comment): the real
+   <textarea> sits on top of a <pre><code> showing the same text with
+   colored <span>s, kept in sync on every keystroke/scroll - the
+   textarea's own text is transparent (only its caret + native selection
+   are visible), so the colored layer underneath does the showing. */
 .stacksUI-editor {
   display: flex; margin-top: 4px; border: 1px solid var(--border-color); border-radius: 4px;
   overflow: hidden; background: #1e1e1e;
@@ -165,12 +169,29 @@
   font-family: 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 12.5px; line-height: 18px;
   white-space: pre; box-sizing: border-box;
 }
-.stacksUI-editor .stacksUI-code {
-  margin-top: 0; border: none; border-radius: 0; resize: none; height: 100%;
-  background: #1e1e1e; color: #d4d4d4; padding: 8px 10px; line-height: 18px;
-  flex: 1 1 auto; min-width: 0; overflow-y: auto; box-sizing: border-box;
+.stacksUI-editor-body { position: relative; flex: 1 1 auto; min-width: 0; height: 100%; }
+.stacksUI-editor-highlight {
+  position: absolute; inset: 0; margin: 0; padding: 8px 10px; overflow: hidden;
+  pointer-events: none; white-space: pre; box-sizing: border-box;
+  font-family: 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 12.5px; line-height: 18px;
+  color: #d4d4d4; background: transparent;
 }
-.stacksUI-editor .stacksUI-code:focus { outline: none; }
+.stacksUI-editor-highlight code { font: inherit; color: inherit; white-space: inherit; }
+.stacksUI-editor-body .stacksUI-code {
+  position: absolute; inset: 0; margin: 0; border: none; border-radius: 0; resize: none;
+  background: transparent; color: transparent; caret-color: #d4d4d4;
+  padding: 8px 10px; line-height: 18px; overflow: auto; box-sizing: border-box;
+}
+.stacksUI-editor-body .stacksUI-code:focus { outline: none; }
+.stacksUI-editor-body .stacksUI-code::selection { background: #264f78; }
+/* Syntax token colors - a common dark-theme palette (VS Code's default
+   dark+ scheme), not tied to Unraid's own theme variables since this
+   editor is deliberately theme-independent (see file header). */
+.tok-comment { color: #6a9955; font-style: italic; }
+.tok-key { color: #9cdcfe; }
+.tok-string { color: #ce9178; }
+.tok-var { color: #4ec9b0; }
+.tok-punct { color: #d4d4d4; }
 
 /* Inline spinner shown in place of a card's Start/Stop/Restart button
    while that action is running, instead of a popup. */
@@ -181,47 +202,3 @@
   animation: stacksUI-spin 0.7s linear infinite;
 }
 @keyframes stacksUI-spin { to { transform: rotate(360deg); } }
-
-/* --- App Store (AppStore.page / js/appStore.js) --- */
-.stacksUI-appstore-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
-}
-.stacksUI-appstore-card {
-  border: 1px solid var(--border-color); border-radius: 6px;
-  background: var(--mild-background-color); padding: 14px;
-  display: flex; flex-direction: column;
-}
-.stacksUI-appstore-card-top { display: flex; align-items: center; gap: 12px; }
-.stacksUI-appstore-logo { width: 44px; height: 44px; object-fit: contain; border-radius: 6px; background: var(--gray-150); }
-.stacksUI-appstore-card-titles { display: flex; flex-direction: column; min-width: 0; }
-.stacksUI-appstore-name { font-weight: bold; }
-.stacksUI-appstore-category {
-  font-size: 11px; color: var(--alt-text-color); text-transform: uppercase;
-}
-.stacksUI-appstore-desc {
-  flex: 1 1 auto; font-size: 13px; color: var(--text-color); margin: 10px 0;
-}
-.stacksUI-appstore-card-actions { display: flex; justify-content: flex-end; }
-
-/* --- App Store install confirmation dialog
-   (include/install_confirm_modal.php / js/installConfirmModal.js) --- */
-.stacksUI-installConfirm-modal { width: 480px; }
-.stacksUI-installConfirm-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.stacksUI-installConfirm-header h2 { margin: 0; }
-/* Reuses the same label-row flex layout as the raw editor's Upload
-   button row (stack_modal.php) - label on the left, Show/Rotate buttons
-   on the right, same spacing convention. */
-.stacksUI-installConfirm-row .stacksUI-installConfirm-input {
-  display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
-}
-.stacksUI-checkbox-row { display: flex; align-items: center; gap: 8px; }
-.stacksUI-checkbox-row input[type="checkbox"] { width: auto; margin: 0; }
-/* Holds the Show/Rotate buttons on the right of a field's label row. */
-.stacksUI-field-label-actions { display: flex; align-items: center; gap: 6px; }
-/* Only the cursor changes here - hiding the blockquote until clicked
-   (.inline_help) and its box styling both already come from Unraid's own
-   global default-base.css (the exact mechanism its Settings pages use for
-   "> text" hints, confirmed by reading BodyInlineJS.php/Markdown.php on a
-   live box), not anything of ours to reproduce. See renderFields()'s own
-   comment and the click handler bound to this class. */
-.stacksUI-help-label { cursor: help; }

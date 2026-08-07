@@ -7,12 +7,8 @@
   var $dir = $('#stacksUI-settings-dir');
   var $dataRoot = $('#stacksUI-settings-dataroot');
   var $backup = $('#stacksUI-settings-backup');
-  var $defaultNetwork = $('#stacksUI-settings-defaultnetwork');
-  var $defaultTld = $('#stacksUI-settings-defaulttld');
-  var $reverseProxy = $('#stacksUI-settings-reverseproxy');
   var $hideDocker = $('#stacksUI-toggle-hideDocker');
   var $hideApps = $('#stacksUI-toggle-hideApps');
-  var $enableAppStore = $('#stacksUI-toggle-enableAppStore');
   var $error = $('#stacksUI-settings-page-error');
   var $saved = $('#stacksUI-settings-page-saved');
   var $save = $('#stacksUI-settings-page-save');
@@ -25,37 +21,12 @@
     return $.post(ajaxUrl, $.extend({ action: action, csrf_token: csrfToken }, data), null, 'json');
   }
 
-  // The dropdown's options (real docker networks) and its selected value
-  // (settings.defaultNetwork) come from two separate requests that can
-  // resolve in either order - stash the desired value and apply it once
-  // options actually exist, rather than assuming settings.json always
-  // wins the race.
-  var pendingNetworkValue = null;
-  function applyNetworkValue() {
-    if (pendingNetworkValue === null) return;
-    if ($defaultNetwork.find('option[value="' + pendingNetworkValue + '"]').length) {
-      $defaultNetwork.val(pendingNetworkValue);
-    }
-  }
-
-  get('list_networks').done(function (result) {
-    (result.networks || []).forEach(function (name) {
-      $defaultNetwork.append($('<option></option>').attr('value', name).text(name));
-    });
-    applyNetworkValue();
-  });
-
   get('settings').done(function (settings) {
     $dir.val(settings.stacksDir);
     $dataRoot.val(settings.dataRoot);
     $backup.val(settings.backupPath);
     $hideDocker.val(settings.hideDocker ? '1' : '0');
     $hideApps.val(settings.hideApps ? '1' : '0');
-    $enableAppStore.val(settings.enableAppStore ? '1' : '0');
-    $defaultTld.val(settings.defaultTld);
-    $reverseProxy.val(settings.reverseProxy ? '1' : '0');
-    pendingNetworkValue = settings.defaultNetwork || 'default';
-    applyNetworkValue();
   }).fail(function (xhr) {
     $error.text((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to load current settings.').show();
   });
@@ -79,12 +50,8 @@
       stacksDir: stacksDir,
       dataRoot: dataRoot,
       backupPath: backupPath,
-      defaultNetwork: $defaultNetwork.val(),
-      defaultTld: $defaultTld.val().trim(),
-      reverseProxy: $reverseProxy.val(),
       hideDocker: $hideDocker.val(),
       hideApps: $hideApps.val(),
-      enableAppStore: $enableAppStore.val(),
     }).done(function (result) {
       var moved = result.moved || [];
       var backedUp = result.backedUp || {};

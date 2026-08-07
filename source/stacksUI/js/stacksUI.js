@@ -13,12 +13,6 @@
   var $actionOutputTitle = $('#stacksUI-action-output-title');
   var $actionOutputStatus = $('#stacksUI-action-output-status');
   var $actionOutputContent = $('#stacksUI-action-output-content');
-  var $updateModal = $('#stacksUI-update-modal');
-  var $updateTitle = $('#stacksUI-update-title');
-  var $updateChangelog = $('#stacksUI-update-changelog');
-  var $updateSummary = $('#stacksUI-update-summary');
-  var $updateError = $('#stacksUI-update-error');
-  var updatingStackName = null;
   var $deleteConfirmModal = $('#stacksUI-delete-confirm-modal');
   var $deleteConfirmMessage = $('#stacksUI-delete-confirm-message');
   var deletingStackName = null;
@@ -102,12 +96,6 @@
           '<input type="checkbox" class="stacksUI-autostart" data-autostart="' + (autostart ? '1' : '0') + '"' + (autostart ? ' checked' : '') + '>' +
         '</label>' +
         '<div class="stacksUI-card-actions">' +
-          // Hidden by default - shown by loadUpdateBadges() only for
-          // stacks with a catalogSlug where the catalog has moved past
-          // the installed catalogVersion. Not known at render time
-          // (comes from a separate, slower catalog-fetching call), so
-          // it's toggled in afterward rather than computed here.
-          '<button class="stacksUI-btn stacksUI-action-update" style="display:none">Update available</button>' +
           '<button class="stacksUI-btn stacksUI-action-toggle" data-action="' + toggleAction + '">' + toggleLabel + '</button>' +
           '<button class="stacksUI-btn stacksUI-action-restart">Restart</button>' +
           '<button class="stacksUI-btn stacksUI-action-logs">Logs</button>' +
@@ -127,23 +115,10 @@
     return $list.find('.stacksUI-card').filter(function () { return $(this).data('name') === name; });
   }
 
-  // Runs after the (fast, local) stack list itself has already rendered -
-  // this hits the App Store catalog (one parallel-fetched request per
-  // app-store-installed stack) so it can be slower, and shouldn't block
-  // showing the stacks you already have while it's in flight.
-  function loadUpdateBadges() {
-    get('check_updates').done(function (updates) {
-      Object.keys(updates).forEach(function (name) {
-        if (!updates[name].updateAvailable) return;
-        cardFor(name).find('.stacksUI-action-update').show();
-      });
-    });
-  }
-
   // Expands and scrolls to one stack's card on the very next list render,
-  // if the App Store's Install flow left a hint behind (see appStore.js).
-  // Cleared immediately after use so it only applies once, not on every
-  // later visit/refresh of this page.
+  // if something left a hint behind (e.g. a just-created stack). Cleared
+  // immediately after use so it only applies once, not on every later
+  // visit/refresh of this page.
   function expandStackFromHandoff() {
     var name = sessionStorage.getItem('stacksUI-expand-stack');
     if (!name) return;
@@ -165,7 +140,6 @@
         $list.append(renderCard(stack));
       });
       $list.find('.stacksUI-autostart').switchButton({ labels_placement: 'right', on_label: 'On', off_label: 'Off' });
-      loadUpdateBadges();
       expandStackFromHandoff();
     }).fail(function () {
       $list.html('<p class="stacksUI-empty">Failed to load stacks.</p>');
@@ -250,67 +224,6 @@
   $('#stacksUI-start-all').on('click', function () { runAllAction('up'); });
   $('#stacksUI-stop-all').on('click', function () { runAllAction('down'); });
 
-  // Renders the env/compose changes an update would make, without
-  // touching anything yet - see stacksUI_preview_update()'s own big
-  // comment in StacksHelper.php for the merge policy this describes.
-  function renderUpdateSummary(preview) {
-    var lines = [];
-    lines.push('<p><strong>' + escapeHtml(preview.installedVersion || '?') + '</strong> &rarr; <strong>' + escapeHtml(preview.latestVersion || '?') + '</strong></p>');
-    if (preview.envAdded.length) {
-      lines.push('<p>Adds env vars: <code>' + preview.envAdded.map(escapeHtml).join('</code>, <code>') + '</code></p>');
-    }
-    if (preview.envRemoved.length) {
-      lines.push('<p>Removes unused env vars: <code>' + preview.envRemoved.map(escapeHtml).join('</code>, <code>') + '</code></p>');
-    }
-    if (preview.composeConflict) {
-      lines.push('<p class="stacksUI-validation stacksUI-validation-fail">Compose file: the new catalog version put different content where you\'ve made your own edit - applying will leave standard conflict markers in docker-compose.yml for you to resolve via Edit + Verify Syntax.</p>');
-    } else {
-      lines.push('<p class="stacksUI-validation stacksUI-validation-ok">Compose file merges cleanly - your own edits are preserved.</p>');
-    }
-    $updateSummary.html(lines.join(''));
-  }
-
-  $list.on('click', '.stacksUI-action-update', function (e) {
-    e.stopPropagation();
-    var name = $(this).closest('.stacksUI-card').data('name');
-    updatingStackName = name;
-    $updateTitle.text('Update available: ' + name);
-    $updateChangelog.text('Loading…');
-    $updateSummary.empty();
-    $updateError.hide().text('');
-    $updateModal.show();
-    get('preview_update', { name: name }).done(function (preview) {
-      $updateChangelog.text(preview.changelog || '');
-      renderUpdateSummary(preview);
-    }).fail(function (xhr) {
-      $updateChangelog.text('');
-      $updateError.text((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to check for updates.').show();
-    });
-  });
-
-  $('#stacksUI-update-cancel').on('click', function () { $updateModal.hide(); });
-
-  $('#stacksUI-update-apply').on('click', function () {
-    var $btn = $(this);
-    if (!updatingStackName) return;
-    $updateError.hide().text('');
-    $btn.prop('disabled', true).text('Applying…');
-    post('apply_update', { name: updatingStackName }).done(function (result) {
-      $updateModal.hide();
-      if (result.composeConflict) {
-        alert('Applied - but docker-compose.yml has a conflict between your edits and this update. Opening Edit so you can resolve it (look for <<<<<<< markers), then Verify Syntax before saving.');
-        get('get', { name: updatingStackName }).done(function (stack) {
-          StacksUIModal.open(stack, { editing: true, onSaved: onStackSaved });
-        });
-      }
-      loadList();
-    }).fail(function (xhr) {
-      $updateError.text((xhr.responseJSON && xhr.responseJSON.error) || 'Failed to apply update.').show();
-    }).always(function () {
-      $btn.prop('disabled', false).text('Apply Update');
-    });
-  });
-
   $list.on('click', '.stacksUI-action-toggle', function (e) {
     e.stopPropagation();
     var $card = $(this).closest('.stacksUI-card');
@@ -349,7 +262,7 @@
     e.stopPropagation();
     var name = $(this).closest('.stacksUI-card').data('name');
     get('get', { name: name }).done(function (stack) {
-      StacksUIInstallConfirm.open(stack, { editing: true, onSaved: onStackSaved });
+      StacksUIModal.open(stack, { editing: true, onSaved: onStackSaved });
     });
   });
 
@@ -397,7 +310,7 @@
   // StacksUISettings.page) rather than an in-page modal - this button
   // just sends you there. Confirmed live: Settings-category pages
   // resolve at /Settings/<PageName> (unlike Tasks-category pages like
-  // /Stacks or /AppStore, which have no prefix).
+  // /Stacks, which have no prefix).
   $('#stacksUI-settings').on('click', function () {
     window.location.href = '/Settings/StacksUISettings';
   });

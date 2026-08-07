@@ -1,6 +1,8 @@
-<!-- Create/edit wizard, shared by Stacks.page (New/Edit) and AppStore.page
-     (Install) - opened via window.StacksUIModal.open() (js/stackModal.js).
-     Any page that includes this must also load js/stackModal.js. -->
+<!-- Create/edit wizard, the only way to create or change a stack's
+     compose/env/extra files - opened via window.StacksUIModal.open()
+     (js/stackModal.js). data-mode on each .stacksUI-editor picks which
+     syntax highlighter js/stackModal.js applies ("yaml" for compose,
+     "env" for dotenv) - see its own comment for how that works. -->
 <div id="stacksUI-modal" class="stacksUI-modal-overlay" style="display:none">
   <div class="stacksUI-modal">
     <h2 id="stacksUI-modal-title">New Stack</h2>
@@ -18,9 +20,12 @@
         <button type="button" id="stacksUI-upload-compose-btn" class="stacksUI-btn stacksUI-btn-small">Upload</button>
         <input type="file" id="stacksUI-upload-compose" accept=".yml,.yaml,text/yaml" style="display:none">
       </div>
-      <div class="stacksUI-editor" data-rows="14">
+      <div class="stacksUI-editor" data-rows="14" data-mode="yaml">
         <div class="stacksUI-editor-gutter"></div>
-        <textarea id="stacksUI-field-compose" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
+        <div class="stacksUI-editor-body">
+          <pre class="stacksUI-editor-highlight" aria-hidden="true"><code></code></pre>
+          <textarea id="stacksUI-field-compose" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
+        </div>
       </div>
     </div>
     <div class="stacksUI-field">
@@ -29,9 +34,12 @@
         <button type="button" id="stacksUI-upload-env-btn" class="stacksUI-btn stacksUI-btn-small">Upload</button>
         <input type="file" id="stacksUI-upload-env" accept=".env,text/plain" style="display:none">
       </div>
-      <div class="stacksUI-editor" data-rows="6">
+      <div class="stacksUI-editor" data-rows="6" data-mode="env">
         <div class="stacksUI-editor-gutter"></div>
-        <textarea id="stacksUI-field-env" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
+        <div class="stacksUI-editor-body">
+          <pre class="stacksUI-editor-highlight" aria-hidden="true"><code></code></pre>
+          <textarea id="stacksUI-field-env" class="stacksUI-code" spellcheck="false" wrap="off"></textarea>
+        </div>
       </div>
     </div>
     <div class="stacksUI-field">

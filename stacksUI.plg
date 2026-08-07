@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.08.06.1">
+<!ENTITY version   "2026.08.08.1">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "f0c253a6489e89ba1c639930ebb79938">
+<!ENTITY MD5       "3e00758e58679116c0a7da9ee2b20032">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,25 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.08.08.1
+- MAJOR SIMPLIFICATION: removed the Stacks App Store/catalog entirely,
+  and everything built on top of it, going back to this plugin's
+  original scope - Docker Compose stack management only. Removed: the
+  "Stacks App Store" tab and its whole browsing/install flow; the
+  unified Install/Edit confirmation dialog (network picker, all-fields
+  editing, Expose Ports toggle, View Raw); Reverse Proxy/Default TLD/
+  Default Network settings (all existed only to serve that dialog);
+  catalog update-tracking (vendor snapshots, "check for updates", the
+  diff3-based merge system); the "Enable Stacks App Store tab" setting.
+- Edit is back to the plain compose/env/extra-files raw editor (same one
+  New Stack already used) - but with real syntax highlighting this time:
+  a small, dependency-free YAML/dotenv highlighter (comments, keys,
+  quoted strings, "${VAR}" interpolation all colored), not vendoring in
+  a library like CodeMirror.
+- This is a real reduction in surface area, not just a feature removal -
+  fewer moving parts, fewer settings, less to keep working across
+  Unraid/Docker updates.
+
 ###2026.08.06.1
 - CRITICAL FIX: uninstalling the plugin didn't actually remove the Stacks/
   Stacks App Store/Stacks UI Settings tabs or the Dashboard tile. Root
@@ -561,13 +580,29 @@ chmod +x "&emhttp;/scripts/"*.sh
 chmod +x "&emhttp;/vendor/docker-compose"
 chmod +x "&emhttp;/event/docker_started/"*
 
+# Cleanup from the removed catalog/update-tracking system: an app
+# installed via the old App Store had a .vendor-compose.yml/.vendor-env
+# snapshot written alongside it for "check for updates" to diff against.
+# Nothing reads these anymore, and left in place they'd incorrectly show
+# up as manageable "Additional files" in the Edit wizard now that
+# they're off the reserved-filename list - so any stack that still has
+# them gets cleaned up once here.
+STACKSUI_STACKS_DIR=$(php -r '
+  $s = @json_decode(@file_get_contents($argv[1]), true);
+  echo is_array($s) &amp;&amp; !empty($s["stacksDir"]) ? $s["stacksDir"] : "&configdir;";
+' "&configdir;/settings.json" 2&gt;/dev/null || echo "&configdir;")
+if [ -d "$STACKSUI_STACKS_DIR" ]; then
+  find "$STACKSUI_STACKS_DIR" -maxdepth 2 -name ".vendor-compose.yml" -delete 2&gt;/dev/null || true
+  find "$STACKSUI_STACKS_DIR" -maxdepth 2 -name ".vendor-env" -delete 2&gt;/dev/null || true
+fi
+
 # dynamix.docker.manager's page file, Community Applications' Apps page,
-# our own AppStore.page, and /usr/local/lib's Docker CLI plugins are all
-# rebuilt from the base OS/plugin packages on every boot - so every tab-
-# visibility toggle and docker-compose itself need to be re-applied at
-# every boot, not just once here. /boot/config/go is the standard flash-
-# persisted boot script other plugins use for exactly this. Guarded with
-# a marker so re-running the installer (upgrades) doesn't duplicate it.
+# and /usr/local/lib's Docker CLI plugins are all rebuilt from the base
+# OS/plugin packages on every boot - so every tab-visibility toggle and
+# docker-compose itself need to be re-applied at every boot, not just
+# once here. /boot/config/go is the standard flash-persisted boot script
+# other plugins use for exactly this. Guarded with a marker so re-running
+# the installer (upgrades) doesn't duplicate it.
 GO_FILE="/boot/config/go"
 MARKER="# --- stacksUI boot-hooks: begin ---"
 if ! grep -qF "$MARKER" "$GO_FILE" 2&gt;/dev/null; then
