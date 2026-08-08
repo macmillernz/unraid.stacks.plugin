@@ -34,7 +34,7 @@
         <button type="button" id="stacksUI-upload-env-btn" class="stacksUI-btn stacksUI-btn-small">Upload</button>
         <input type="file" id="stacksUI-upload-env" accept=".env,text/plain" style="display:none">
       </div>
-      <div class="stacksUI-editor" data-rows="6" data-mode="env">
+      <div class="stacksUI-editor" data-rows="14" data-mode="env">
         <div class="stacksUI-editor-gutter"></div>
         <div class="stacksUI-editor-body">
           <pre class="stacksUI-editor-highlight" aria-hidden="true"><code></code></pre>

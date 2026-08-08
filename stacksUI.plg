@@ -18,13 +18,13 @@ can check for updates.
 <!-- Version follows year.month.day.n - bump n for each same-day release,
      reset to 1 when the date changes. package.sh reads this value as its
      default (single source of truth) rather than generating its own. -->
-<!ENTITY version   "2026.08.08.1">
+<!ENTITY version   "2026.08.08.2">
 <!-- Confirmed real (matches `git remote -v`), not a guess. Repo was
      renamed from macmillernz/stacksUI to macmillernz/unraid.stacks.plugin
      - updated here to match. -->
 <!ENTITY pluginURL "https://raw.githubusercontent.com/macmillernz/unraid.stacks.plugin/main/stacksUI.plg">
 <!ENTITY SRC       "https://github.com/macmillernz/unraid.stacks.plugin/releases/download/&version;/stacksUI-&version;.txz">
-<!ENTITY MD5       "3e00758e58679116c0a7da9ee2b20032">
+<!ENTITY MD5       "362648bbb332b7a48aac648e58e8fd1d">
 <!ENTITY emhttp    "/usr/local/emhttp/plugins/&name;">
 <!ENTITY configdir "/boot/config/plugins/&name;">
 ]>
@@ -32,6 +32,11 @@ can check for updates.
 <PLUGIN name="&name;" author="&author;" version="&version;" pluginURL="&pluginURL;" icon="stacks.png" min="6.12.0">
 
   <CHANGES>
+###2026.08.08.2
+- The .env editor is now the same height as the compose editor (14 rows,
+  was 6) - the short box was cramped enough to cause real problems
+  selecting/entering text in a file with more than a handful of lines.
+
 ###2026.08.08.1
 - MAJOR SIMPLIFICATION: removed the Stacks App Store/catalog entirely,
   and everything built on top of it, going back to this plugin's
